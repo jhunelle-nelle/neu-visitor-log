@@ -58,10 +58,15 @@ const AdminDashboard = () => {
   const [statusFilter, setStatusFilter] = useState("all");
 
   useEffect(() => {
-    if (!authLoading && !user) {
-      navigate("/login");
+    if (!authLoading) {
+      if (!user) {
+        navigate("/login");
+      } else if (!isAdmin) {
+        toast.error("You do not have admin access.");
+        navigate("/");
+      }
     }
-  }, [user, authLoading, navigate]);
+  }, [user, isAdmin, authLoading, navigate]);
 
   useEffect(() => {
     if (user) fetchLogs();

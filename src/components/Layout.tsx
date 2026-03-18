@@ -10,6 +10,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
+    window.location.href = "/";
   };
 
   return (
