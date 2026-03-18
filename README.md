@@ -1,73 +1,98 @@
-# Welcome to your Lovable project
+# NEU Library Visitor Log System
 
-## Project info
+A full-stack web application for managing visitor logs at the **New Era University Library**. Built as a modern, responsive system with role-based access control and real-time visitor tracking.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+🔗 **Live Application:** [https://neu-visitor-logbook.lovable.app](https://neu-visitor-logbook.lovable.app)
 
-## How can I edit this code?
+---
 
-There are several ways of editing your application.
+## Features
 
-**Use Lovable**
+### Visitor Log (Public — No Login Required)
+- **Clock In** — Visitors enter their Name, ID Number, College, Purpose of Visit, and Status (Student / Teacher / Staff)
+- **Clock Out** — Visitors enter their ID Number to end their session
+- Greeting message: *"Welcome to NEU Library!"*
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+### Admin Dashboard (Authenticated Users Only)
+- **Google OAuth Sign-In** — Admins log in with their NEU Google account (e.g. `jcesperanza@neu.edu.ph`)
+- **Role-Based Access Control (RBAC)** — Secure authorization with `admin` and `user` roles stored in a separate `user_roles` table
+- **Visitor Statistics Cards** — Total Visits, Currently Active, Unique Visitors, Average Duration
+- **Advanced Filtering** — Filter logs by:
+  - Date range (Today, This Week, Custom Range)
+  - Purpose of visit (Study/Research, Borrow Books, etc.)
+  - College / Department
+  - Employee status (Student, Teacher, Staff)
+- **CSV Export** — Download filtered visitor logs as a `.csv` file
+- **Clear All Logs** — Admin-only action with confirmation dialog
 
-Changes made via Lovable will be committed automatically to this repo.
+### Security
+- Row-Level Security (RLS) policies on all database tables
+- `has_role()` security-definer function prevents recursive RLS checks
+- Admin privileges verified server-side, never client-side
 
-**Use your preferred IDE**
+---
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+## Tech Stack
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+| Layer        | Technology                              |
+|--------------|----------------------------------------|
+| Frontend     | React 18, TypeScript, Vite             |
+| Styling      | Tailwind CSS, shadcn/ui               |
+| Backend      | Lovable Cloud (Supabase)              |
+| Auth         | Google OAuth 2.0                       |
+| Database     | PostgreSQL with RLS                    |
+| Deployment   | Lovable Platform                       |
 
-Follow these steps:
+---
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
+## Account Roles
+
+| Email                         | Role    | Access                                      |
+|-------------------------------|---------|---------------------------------------------|
+| `jcesperanza@neu.edu.ph`     | Admin   | Dashboard, statistics, filters, CSV export  |
+| `jhunelle.remo@neu.edu.ph`   | Admin   | Dashboard, statistics, filters, CSV export  |
+| Any other Google account      | User    | Greeted with "Welcome to NEU Library!"      |
+
+---
+
+## Project Structure
+
+```
+src/
+├── components/
+│   ├── Layout.tsx          # App shell with nav & footer
+│   └── ui/                 # shadcn/ui components
+├── hooks/
+│   └── useAuth.tsx         # Auth context with role management
+├── pages/
+│   ├── VisitorForm.tsx     # Public clock-in / clock-out form
+│   ├── LoginPage.tsx       # Google OAuth login
+│   ├── AdminDashboard.tsx  # Admin stats, filters, table
+│   └── NotFound.tsx        # 404 page
+└── integrations/
+    └── supabase/           # Auto-generated client & types
+```
+
+---
+
+## Local Development
+
+```bash
+# Clone the repository
 git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
 cd <YOUR_PROJECT_NAME>
 
-# Step 3: Install the necessary dependencies.
-npm i
+# Install dependencies
+npm install
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# Start dev server
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+Requires **Node.js 18+** and npm.
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+---
 
-**Use GitHub Codespaces**
+## License
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+© 2026 New Era University Library. All rights reserved.
