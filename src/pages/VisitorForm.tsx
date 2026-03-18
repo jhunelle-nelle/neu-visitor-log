@@ -105,12 +105,17 @@ const VisitorForm = () => {
   return (
     <Layout>
       <div className="container mx-auto px-4 py-8 max-w-2xl animate-fade-in">
-        <div className="text-center mb-8">
-          <h2 className="text-3xl font-display font-bold text-foreground">
-            Visitor Log
-          </h2>
-          <p className="text-muted-foreground mt-2">
-            Welcome to New Era University Library
+        <div className="text-center mb-10">
+          <div className="inline-block mb-4 px-6 py-3 rounded-2xl gradient-hero">
+            <h2 className="text-4xl sm:text-5xl font-display font-extrabold text-primary-foreground tracking-tight">
+              Welcome to
+            </h2>
+            <h2 className="text-4xl sm:text-5xl font-display font-extrabold text-accent tracking-tight">
+              New Era University Library
+            </h2>
+          </div>
+          <p className="text-lg text-muted-foreground mt-3 max-w-md mx-auto">
+            Sign in below to log your visit
           </p>
         </div>
 
