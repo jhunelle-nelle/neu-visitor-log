@@ -25,7 +25,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
               <h1 className="text-lg font-bold text-primary-foreground leading-tight">
                 NEU Library
               </h1>
-              <p className="text-xs text-primary-foreground/70">Visitor Log System</p>
+              <p className="text-xs text-primary-foreground/70">Visitor Log</p>
             </div>
           </Link>
           <nav className="flex items-center gap-2">
@@ -39,15 +39,15 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
                 Visitor Log
               </Button>
             </Link>
-            {user && (
+            {user && isAdmin && (
               <Link to="/admin">
                 <Button
-                  variant={location.pathname === "/admin" ? "secondary" : "ghost"}
+                  variant={location.pathname.startsWith("/admin") ? "secondary" : "ghost"}
                   size="sm"
-                  className={location.pathname !== "/admin" ? "text-primary-foreground/80 hover:text-primary-foreground hover:bg-primary-foreground/10" : ""}
+                  className={!location.pathname.startsWith("/admin") ? "text-primary-foreground/80 hover:text-primary-foreground hover:bg-primary-foreground/10" : ""}
                 >
                   <Shield className="w-4 h-4 mr-1.5" />
-                  Dashboard
+                  Admin
                 </Button>
               </Link>
             )}

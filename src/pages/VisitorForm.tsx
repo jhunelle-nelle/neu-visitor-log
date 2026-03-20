@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,6 +40,40 @@ const VisitorForm = () => {
   const [loading, setLoading] = useState(false);
   const [clockOutId, setClockOutId] = useState("");
   const [mode, setMode] = useState<"clockin" | "clockout">("clockin");
+  const [isReturningVisitor, setIsReturningVisitor] = useState(false);
+  const [lookingUp, setLookingUp] = useState(false);
+
+  // Auto-fill for returning visitors when ID number is entered
+  useEffect(() => {
+    const lookup = async () => {
+      const trimmed = idNumber.trim();
+      if (trimmed.length < 4) {
+        setIsReturningVisitor(false);
+        return;
+      }
+      setLookingUp(true);
+      const { data } = await supabase
+        .from("visitor_logs")
+        .select("visitor_name, college, employee_status")
+        .eq("id_number", trimmed)
+        .order("clock_in", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      if (data) {
+        setIsReturningVisitor(true);
+        setName(data.visitor_name);
+        setCollege(data.college);
+        setEmployeeStatus(data.employee_status as "student" | "teacher" | "staff");
+      } else {
+        setIsReturningVisitor(false);
+      }
+      setLookingUp(false);
+    };
+
+    const timer = setTimeout(lookup, 500);
+    return () => clearTimeout(timer);
+  }, [idNumber]);
 
   const handleClockIn = async () => {
     if (!name.trim() || !idNumber.trim() || !college || !purpose) {
@@ -47,12 +81,14 @@ const VisitorForm = () => {
       return;
     }
     setLoading(true);
+    const now = new Date().toISOString();
     const { error } = await supabase.from("visitor_logs").insert({
       visitor_name: name.trim(),
       id_number: idNumber.trim(),
       college,
       purpose,
       employee_status: employeeStatus,
+      clock_in: now,
     });
     setLoading(false);
     if (error) {
@@ -64,6 +100,7 @@ const VisitorForm = () => {
       setCollege("");
       setPurpose("");
       setEmployeeStatus("student");
+      setIsReturningVisitor(false);
     }
   };
 
@@ -111,7 +148,7 @@ const VisitorForm = () => {
               Welcome to
             </h2>
             <h2 className="text-4xl sm:text-5xl font-display font-extrabold text-accent tracking-tight">
-              New Era University Library
+              NEU Library
             </h2>
           </div>
           <p className="text-lg text-muted-foreground mt-3 max-w-md mx-auto">
@@ -145,28 +182,36 @@ const VisitorForm = () => {
                 <UserCheck className="w-5 h-5 text-primary" />
                 Clock In
               </CardTitle>
-              <CardDescription>Enter your details to log your visit</CardDescription>
+              <CardDescription>
+                {isReturningVisitor
+                  ? "Welcome back! Your details have been auto-filled."
+                  : "Enter your details to log your visit"}
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Full Name *</Label>
-                  <Input
-                    id="name"
-                    placeholder="Juan Dela Cruz"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="idNumber">ID Number *</Label>
-                  <Input
-                    id="idNumber"
-                    placeholder="2024-00001"
-                    value={idNumber}
-                    onChange={(e) => setIdNumber(e.target.value)}
-                  />
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="idNumber">Student/Employee No. *</Label>
+                <Input
+                  id="idNumber"
+                  placeholder="2024-00001"
+                  value={idNumber}
+                  onChange={(e) => setIdNumber(e.target.value)}
+                />
+                {lookingUp && (
+                  <p className="text-xs text-muted-foreground">Looking up your info...</p>
+                )}
+                {isReturningVisitor && (
+                  <p className="text-xs text-primary font-medium">✓ Returning visitor — details auto-filled</p>
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="name">Full Name *</Label>
+                <Input
+                  id="name"
+                  placeholder="Juan Dela Cruz"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
               </div>
               <div className="space-y-2">
                 <Label>College / Department *</Label>
@@ -229,7 +274,7 @@ const VisitorForm = () => {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="clockOutId">ID Number *</Label>
+                <Label htmlFor="clockOutId">Student/Employee No. *</Label>
                 <Input
                   id="clockOutId"
                   placeholder="2024-00001"

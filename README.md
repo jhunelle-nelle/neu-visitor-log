@@ -1,6 +1,6 @@
-# NEU Library Visitor Log System
+# NEU Library — Visitor Log
 
-A full-stack web application for managing visitor logs at the **New Era University Library**. Built as a modern, responsive system with role-based access control and real-time visitor tracking.
+A web-based visitor logging application for New Era University Library.
 
 🔗 **Live Application:** [https://neu-visitor-logbook.lovable.app](https://neu-visitor-logbook.lovable.app)
 
@@ -8,50 +8,40 @@ A full-stack web application for managing visitor logs at the **New Era Universi
 
 ## Features
 
-### Visitor Log (Public — No Login Required)
-- **Clock In** — Visitors enter their Name, ID Number, College, Purpose of Visit, and Status (Student / Teacher / Staff)
-- **Clock Out** — Visitors enter their ID Number to end their session
-- Greeting message: *"Welcome to NEU Library!"*
+### Visitor (Public — No Login Required)
+- **Clock In / Clock Out** using Student/Employee Number
+- **First-time visitors**: Enter full details (Name, ID, College, Purpose, Status)
+- **Returning visitors**: Details auto-filled from previous visits
+- Greeting: **"Welcome to NEU Library!"**
 
-### Admin Dashboard (Authenticated Users Only)
-- **Google OAuth Sign-In** — Admins log in with their NEU Google account (e.g. `jcesperanza@neu.edu.ph`)
-- **Role-Based Access Control (RBAC)** — Secure authorization with `admin` and `user` roles stored in a separate `user_roles` table
-- **Visitor Statistics Cards** — Total Visits, Currently Active, Unique Visitors, Average Duration
-- **Advanced Filtering** — Filter logs by:
-  - Date range (Today, This Week, Custom Range)
-  - Purpose of visit (Study/Research, Borrow Books, etc.)
-  - College / Department
-  - Employee status (Student, Teacher, Staff)
-- **CSV Export** — Download filtered visitor logs as a `.csv` file
-- **Clear All Logs** — Admin-only action with confirmation dialog
+### Admin (Google OAuth — Role-Based Access)
+- **Dashboard**: Stats cards — Total Visits, Currently Active, Unique Visitors, Avg. Duration
+- **Visit Logs**: Table with Name, St. No., College, Purpose, Status, Date, Time In, Time Out
+- **Visitors**: Unique visitor list with total visit count and last visit date
+- **Admin**: Account info and quick actions
+- **Search Bar**: Search by name, student no., purpose, date
+- **Filters**: By date range (today/week/custom), purpose, college, employee status
+- **Export**: Download filtered logs as CSV
+- **Clear All**: Delete all logs (with confirmation)
 
-### Security
-- Row-Level Security (RLS) policies on all database tables
-- `has_role()` security-definer function prevents recursive RLS checks
-- Admin privileges verified server-side, never client-side
+### Authentication & Authorization
+- Google OAuth only (NEU accounts supported)
+- Role-based access control (RBAC) via separate `user_roles` table
+- Admin accounts: `jcesperanza@neu.edu.ph`, `jhunelle.remo@neu.edu.ph`
+- Automatic role assignment on first login
+- `has_role()` security-definer function for safe RLS policies
 
 ---
 
 ## Tech Stack
 
-| Layer        | Technology                              |
-|--------------|----------------------------------------|
-| Frontend     | React 18, TypeScript, Vite             |
-| Styling      | Tailwind CSS, shadcn/ui               |
-| Backend      | Lovable Cloud (Supabase)              |
-| Auth         | Google OAuth 2.0                       |
-| Database     | PostgreSQL with RLS                    |
-| Deployment   | Lovable Platform                       |
-
----
-
-## Account Roles
-
-| Email                         | Role    | Access                                      |
-|-------------------------------|---------|---------------------------------------------|
-| `jcesperanza@neu.edu.ph`     | Admin   | Dashboard, statistics, filters, CSV export  |
-| `jhunelle.remo@neu.edu.ph`   | Admin   | Dashboard, statistics, filters, CSV export  |
-| Any other Google account      | User    | Greeted with "Welcome to NEU Library!"      |
+| Layer      | Technology                        |
+|------------|-----------------------------------|
+| Frontend   | React 18, TypeScript, Vite        |
+| Styling    | Tailwind CSS, shadcn/ui           |
+| Backend    | Lovable Cloud (PostgreSQL)        |
+| Auth       | Google OAuth 2.0                  |
+| Deployment | Lovable Platform                  |
 
 ---
 
@@ -64,10 +54,13 @@ src/
 │   └── ui/                 # shadcn/ui components
 ├── hooks/
 │   └── useAuth.tsx         # Auth context with role management
+├── lib/
+│   ├── utils.ts            # Utility functions
+│   └── time.ts             # Local time formatting helpers
 ├── pages/
-│   ├── VisitorForm.tsx     # Public clock-in / clock-out form
+│   ├── VisitorForm.tsx     # Public clock-in / clock-out
+│   ├── AdminDashboard.tsx  # Admin panel with 4 tabs
 │   ├── LoginPage.tsx       # Google OAuth login
-│   ├── AdminDashboard.tsx  # Admin stats, filters, table
 │   └── NotFound.tsx        # 404 page
 └── integrations/
     └── supabase/           # Auto-generated client & types
@@ -78,18 +71,11 @@ src/
 ## Local Development
 
 ```bash
-# Clone the repository
-git clone <YOUR_GIT_URL>
-cd <YOUR_PROJECT_NAME>
-
-# Install dependencies
 npm install
-
-# Start dev server
 npm run dev
 ```
 
-Requires **Node.js 18+** and npm.
+Requires Node.js 18+ and npm.
 
 ---
 
