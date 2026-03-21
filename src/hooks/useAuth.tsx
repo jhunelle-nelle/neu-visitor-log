@@ -24,6 +24,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const checkAdmin = async (currentUser: User | null) => {
     if (!currentUser) {
+      console.log("No current user");
       setIsAdmin(false);
       return;
     }
@@ -33,7 +34,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       "jhunnelleremo71@gmail.com",
     ];
 
-    setIsAdmin(allowedAdmins.includes(currentUser.email ?? ""));
+    console.log("Logged in user object:", currentUser);
+    console.log("Logged in email:", currentUser.email);
+    console.log("Allowed admins:", allowedAdmins);
+
+    const adminCheck = allowedAdmins.includes((currentUser.email ?? "").toLowerCase());
+    console.log("Is admin?", adminCheck);
+
+    setIsAdmin(adminCheck);
   };
 
   useEffect(() => {
@@ -58,6 +66,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         return;
       }
 
+      console.log("Initial session:", session);
+
       setSession(session ?? null);
       setUser(session?.user ?? null);
       await checkAdmin(session?.user ?? null);
@@ -68,8 +78,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return;
+
+      console.log("Auth state changed:", event, session);
 
       setSession(session ?? null);
       setUser(session?.user ?? null);
