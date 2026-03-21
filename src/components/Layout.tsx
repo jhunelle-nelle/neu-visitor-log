@@ -1,81 +1,44 @@
-import { Link, useLocation } from "react-router-dom";
-import { BookOpen, Shield, LogOut, User } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { ReactNode } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
-const Layout = ({ children }: { children: React.ReactNode }) => {
-  const location = useLocation();
-  const { user, isAdmin } = useAuth();
+const Layout = ({ children }: { children: ReactNode }) => {
+  const navigate = useNavigate();
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    window.location.href = "/";
+  const handleSignOut = async () => {
+    const { error } = await supabase.auth.signOut();
+
+    if (error) {
+      toast.error("Failed to sign out");
+      return;
+    }
+
+    toast.success("Signed out successfully");
+    navigate("/");
   };
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <header className="gradient-hero border-b border-primary/20">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-accent flex items-center justify-center">
-              <BookOpen className="w-5 h-5 text-accent-foreground" />
-            </div>
-            <div>
-              <h1 className="text-lg font-bold text-primary-foreground leading-tight">
-                NEU Library
-              </h1>
-              <p className="text-xs text-primary-foreground/70">Visitor Log</p>
-            </div>
+    <div className="min-h-screen bg-background text-foreground">
+      <header className="border-b bg-primary text-primary-foreground">
+        <div className="container mx-auto flex items-center justify-between px-4 py-4">
+          <Link to="/" className="font-bold text-xl">
+            NEU Library Visitor Log
           </Link>
-          <nav className="flex items-center gap-2">
-            <Link to="/">
-              <Button
-                variant={location.pathname === "/" ? "secondary" : "ghost"}
-                size="sm"
-                className={location.pathname !== "/" ? "text-primary-foreground/80 hover:text-primary-foreground hover:bg-primary-foreground/10" : ""}
-              >
-                <BookOpen className="w-4 h-4 mr-1.5" />
-                Visitor Log
-              </Button>
+
+          <div className="flex items-center gap-3">
+            <Link to="/" className="text-sm">
+              Visitor Log
             </Link>
-            {user && isAdmin && (
-              <Link to="/admin">
-                <Button
-                  variant={location.pathname.startsWith("/admin") ? "secondary" : "ghost"}
-                  size="sm"
-                  className={!location.pathname.startsWith("/admin") ? "text-primary-foreground/80 hover:text-primary-foreground hover:bg-primary-foreground/10" : ""}
-                >
-                  <Shield className="w-4 h-4 mr-1.5" />
-                  Admin
-                </Button>
-              </Link>
-            )}
-            {user ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleLogout}
-                className="text-primary-foreground/80 hover:text-primary-foreground hover:bg-primary-foreground/10"
-              >
-                <LogOut className="w-4 h-4 mr-1.5" />
-                Sign Out
-              </Button>
-            ) : (
-              <Link to="/login">
-                <Button variant="secondary" size="sm">
-                  <User className="w-4 h-4 mr-1.5" />
-                  Admin Login
-                </Button>
-              </Link>
-            )}
-          </nav>
+            <Button variant="secondary" onClick={handleSignOut}>
+              Sign Out
+            </Button>
+          </div>
         </div>
       </header>
-      <main className="flex-1">{children}</main>
-      <footer className="border-t py-4 text-center text-sm text-muted-foreground">
-        © {new Date().getFullYear()} New Era University Library. All rights reserved.
-      </footer>
+
+      <main>{children}</main>
     </div>
   );
 };
