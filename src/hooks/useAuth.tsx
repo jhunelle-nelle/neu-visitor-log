@@ -30,14 +30,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
 
     const allowedAdmins = [
+      "jhunelle.remo@neu.edu.ph",
       "jcesperanza@neu.edu.ph",
-      "jhunelleremo71@gmail.com",
     ];
 
     const email = (currentUser.email ?? "").toLowerCase().trim();
-    const adminCheck = allowedAdmins.includes(email);
-
-    setIsAdmin(adminCheck);
+    setIsAdmin(allowedAdmins.includes(email));
   };
 
   useEffect(() => {
