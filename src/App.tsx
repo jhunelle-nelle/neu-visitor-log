@@ -1,8 +1,8 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
+import Index from "@/pages/Index";
 import LoginPage from "@/pages/LoginPage";
 import AdminPage from "@/pages/AdminPage";
-import Index from "@/pages/Index";
 import NotFound from "@/pages/NotFound";
 
 const App = () => {
