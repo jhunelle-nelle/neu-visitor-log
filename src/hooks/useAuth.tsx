@@ -32,7 +32,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     const allowedAdmins = [
       "jcesperanza@neu.edu.ph",
-      "jhunnelleremo71@gmail.com",
+      "jhunelleremo71@gmail.com",
     ];
 
     const email = (currentUser.email ?? "").toLowerCase().trim();
