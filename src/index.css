@@ -1,8 +1,8 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:wght@600;700;800&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:wght@600;700;800&display=swap');
 
 @layer base {
   :root {
@@ -45,7 +45,6 @@
     --sidebar-border: 215 60% 35%;
     --sidebar-ring: 45 90% 55%;
 
-    /* Custom tokens */
     --neu-blue: 215 80% 28%;
     --neu-blue-light: 215 70% 40%;
     --neu-gold: 45 90% 55%;
@@ -82,12 +81,11 @@
     --input: 220 20% 20%;
     --ring: 215 70% 50%;
   }
-}
 
-@layer base {
   * {
     @apply border-border;
   }
+
   body {
     @apply bg-background text-foreground font-sans antialiased;
   }
@@ -97,12 +95,15 @@
   .gradient-hero {
     background: var(--gradient-hero);
   }
+
   .gradient-gold {
     background: var(--gradient-gold);
   }
+
   .shadow-card {
     box-shadow: var(--shadow-card);
   }
+
   .shadow-elevated {
     box-shadow: var(--shadow-elevated);
   }
