@@ -13,11 +13,21 @@ const LoginPage = () => {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
 
-  useEffect(() => {
-    if (!loading && user) {
+ useEffect(() => {
+  if (!loading && user) {
+    const allowedAdmins = [
+      "jcesperanza@neu.edu.ph",
+      "jhunnelleremo71@gmail.com"
+    ];
+
+    if (allowedAdmins.includes(user.email ?? "")) {
       navigate("/admin");
+    } else {
+      toast.error("You are not an admin");
+      navigate("/");
     }
-  }, [user, loading, navigate]);
+  }
+}, [user, loading, navigate]);
 
   const handleGoogleLogin = async () => {
     try {
