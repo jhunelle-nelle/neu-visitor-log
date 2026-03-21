@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Shield } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { lovable } from "@/integrations/lovable";
+import { supabase } from "@/integrations/supabase/client";
 import Layout from "@/components/Layout";
 import { toast } from "sonner";
 import libraryBg from "@/assets/library-bg.jpg";
@@ -21,14 +21,18 @@ const LoginPage = () => {
 
   const handleGoogleLogin = async () => {
     try {
-      const result = await lovable.auth.signInWithOAuth("google", {
-        redirect_uri: window.location.origin,
-        extraParams: {
-          prompt: "select_account",
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/admin`,
+          queryParams: {
+            prompt: "select_account",
+          },
         },
       });
-      if (result.error) {
-        toast.error("Login failed. Please try again.");
+
+      if (error) {
+        toast.error(error.message || "Login failed. Please try again.");
       }
     } catch (err) {
       toast.error("Login failed. Please try again.");
