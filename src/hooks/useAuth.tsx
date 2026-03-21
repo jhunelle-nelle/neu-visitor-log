@@ -1,63 +1,86 @@
-import { useState, useEffect, createContext, useContext } from "react";
+import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import type { User } from "@supabase/supabase-js";
 
 type AuthContextType = {
   user: User | null;
-  isAdmin: boolean;
-  roles: string[];
+  session: Session | null;
   loading: boolean;
+  isAdmin: boolean;
 };
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
-  isAdmin: false,
-  roles: [],
+  session: null,
   loading: true,
+  isAdmin: false,
 });
 
-export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
+export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [roles, setRoles] = useState<string[]>([]);
+  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
 
-  const fetchRoles = async (userId: string) => {
-    const { data } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", userId);
-    setRoles(data?.map((r) => r.role) ?? []);
+  const checkAdmin = async (currentUser: User | null) => {
+    if (!currentUser) {
+      setIsAdmin(false);
+      return;
+    }
+
+    const adminEmail = "jcesperanza@neu.edu.ph";
+    setIsAdmin(currentUser.email === adminEmail);
   };
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        setUser(session?.user ?? null);
-        if (session?.user) {
-          // Use setTimeout to avoid deadlocks with Supabase auth
-          setTimeout(() => fetchRoles(session.user.id), 0);
-        } else {
-          setRoles([]);
-        }
-        setLoading(false);
-      }
-    );
+    let mounted = true;
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchRoles(session.user.id);
+    const initAuth = async () => {
+      setLoading(true);
+
+      const {
+        data: { session },
+        error,
+      } = await supabase.auth.getSession();
+
+      if (!mounted) return;
+
+      if (error) {
+        console.error("Error getting session:", error.message);
+        setUser(null);
+        setSession(null);
+        setIsAdmin(false);
+        setLoading(false);
+        return;
       }
+
+      setSession(session ?? null);
+      setUser(session?.user ?? null);
+      await checkAdmin(session?.user ?? null);
+      setLoading(false);
+    };
+
+    initAuth();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (!mounted) return;
+
+      setSession(session ?? null);
+      setUser(session?.user ?? null);
+      await checkAdmin(session?.user ?? null);
       setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
-  const isAdmin = roles.includes("admin");
-
   return (
-    <AuthContext.Provider value={{ user, isAdmin, roles, loading }}>
+    <AuthContext.Provider value={{ user, session, loading, isAdmin }}>
       {children}
     </AuthContext.Provider>
   );
