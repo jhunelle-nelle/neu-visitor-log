@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
-import { User, Session } from "@supabase/supabase-js";
+import type { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
 type AuthContextType = {
@@ -22,7 +22,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
 
-  const checkAdmin = async (currentUser: User | null) => {
+  const checkAdmin = (currentUser: User | null) => {
     if (!currentUser) {
       console.log("No current user");
       setIsAdmin(false);
@@ -38,9 +38,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     console.log("Logged in email:", currentUser.email);
     console.log("Allowed admins:", allowedAdmins);
 
-    const adminCheck = allowedAdmins.includes((currentUser.email ?? "").toLowerCase());
-    console.log("Is admin?", adminCheck);
+    const adminCheck = allowedAdmins.includes(
+      (currentUser.email ?? "").toLowerCase().trim()
+    );
 
+    console.log("Is admin?", adminCheck);
     setIsAdmin(adminCheck);
   };
 
@@ -70,7 +72,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       setSession(session ?? null);
       setUser(session?.user ?? null);
-      await checkAdmin(session?.user ?? null);
+      checkAdmin(session?.user ?? null);
       setLoading(false);
     };
 
@@ -78,14 +80,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
       if (!mounted) return;
 
       console.log("Auth state changed:", event, session);
 
       setSession(session ?? null);
       setUser(session?.user ?? null);
-      await checkAdmin(session?.user ?? null);
+      checkAdmin(session?.user ?? null);
       setLoading(false);
     });
 
