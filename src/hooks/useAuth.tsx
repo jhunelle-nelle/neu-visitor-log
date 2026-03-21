@@ -25,7 +25,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const checkAdmin = (currentUser: User | null) => {
     if (!currentUser) {
-      console.log("No current user");
       setIsAdmin(false);
       return;
     }
@@ -36,15 +35,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     ];
 
     const email = (currentUser.email ?? "").toLowerCase().trim();
-
-    console.log("Logged in user object:", currentUser);
-    console.log("Logged in email:", currentUser.email);
-    console.log("Clean email:", email);
-    console.log("Allowed admins:", allowedAdmins);
-
     const adminCheck = allowedAdmins.includes(email);
 
-    console.log("Is admin?", adminCheck);
     setIsAdmin(adminCheck);
   };
 
@@ -62,15 +54,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (!mounted) return;
 
       if (error) {
-        console.error("Error getting session:", error.message);
         setUser(null);
         setSession(null);
         setIsAdmin(false);
         setLoading(false);
         return;
       }
-
-      console.log("Initial session:", session);
 
       setSession(session ?? null);
       setUser(session?.user ?? null);
@@ -82,10 +71,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
+    } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!mounted) return;
-
-      console.log("Auth state changed:", event, session);
 
       setSession(session ?? null);
       setUser(session?.user ?? null);
