@@ -28,8 +28,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
-    const adminEmail = "jcesperanza@neu.edu.ph";
-    setIsAdmin(currentUser.email === adminEmail);
+    const allowedAdmins = [
+      "jcesperanza@neu.edu.ph",
+      "jhunnelleremo71@gmail.com",
+    ];
+
+    setIsAdmin(allowedAdmins.includes(currentUser.email ?? ""));
   };
 
   useEffect(() => {
