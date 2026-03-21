@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import Layout from "@/components/Layout";
 
-const AdminPage = () => {
+const AdminDashboard = () => {
   const { user, loading, isAdmin } = useAuth();
   const navigate = useNavigate();
 
@@ -63,4 +63,4 @@ const AdminPage = () => {
   );
 };
 
-export default AdminPage;
+export default AdminDashboard;
