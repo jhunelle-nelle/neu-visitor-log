@@ -14,12 +14,17 @@ const LoginPage = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
+    const handleUnauthorized = async () => {
+      toast.error("You don't have access");
+      await supabase.auth.signOut();
+      navigate("/");
+    };
+
     if (!loading && user) {
       if (isAdmin) {
         navigate("/admin");
       } else {
-        toast.error("You don't have access");
-        navigate("/");
+        void handleUnauthorized();
       }
     }
   }, [user, loading, isAdmin, navigate]);
@@ -30,7 +35,9 @@ const LoginPage = () => {
         provider: "google",
         options: {
           redirectTo: "https://neu-visitor-log-nine.vercel.app/login",
-          queryParams: { prompt: "select_account" },
+          queryParams: {
+            prompt: "select_account",
+          },
         },
       });
 
