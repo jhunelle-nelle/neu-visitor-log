@@ -54,10 +54,7 @@ const AdminDashboard = () => {
 
   const [blockedIds, setBlockedIds] = useState<string[]>([]);
 
-  const [adminEmail, setAdminEmail] = useState("");
-  const [staffEmail, setStaffEmail] = useState("");
-
-  const [admins, setAdmins] = useState<ManagedEmail[]>([
+   const [admins, setAdmins] = useState<ManagedEmail[]>([
     {
       id: "1",
       email: "jhunelle.remo@neu.edu.ph",
