@@ -1,13 +1,9 @@
-import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { useEffect, useState } from "react";
+import { LogIn, LogOut, Mail, User, Shield } from "lucide-react";
 import { toast } from "sonner";
-import { Clock, LogIn, LogOut, UserCheck, Mail, Sparkles, CheckCircle2 } from "lucide-react";
 import Layout from "@/components/Layout";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import libraryBg from "@/assets/library-bg.jpg";
 
 const colleges = [
@@ -23,158 +19,150 @@ const colleges = [
 ];
 
 const purposes = [
-  "Study / Research",
-  "Borrow Books",
-  "Return Books",
-  "Use Computers",
-  "Group Study",
-  "Thesis / Dissertation",
-  "Other",
+  "Study",
+  "Use of Computer",
+  "Lounge",
+  "Reading",
+  "Others",
 ];
 
-const VisitorForm = () => {
-  const [name, setName] = useState("");
+const VisitorPage = () => {
+  const { user, loading, isAdmin } = useAuth();
+
+  const [mode, setMode] = useState<"clockin" | "clockout">("clockin");
+  const [submitting, setSubmitting] = useState(false);
+
+  const [studentNo, setStudentNo] = useState("");
+  const [fullName, setFullName] = useState("");
   const [gmail, setGmail] = useState("");
-  const [idNumber, setIdNumber] = useState("");
   const [college, setCollege] = useState("");
   const [purpose, setPurpose] = useState("");
-  const [employeeStatus, setEmployeeStatus] = useState<"student" | "teacher" | "staff">("student");
-  const [loading, setLoading] = useState(false);
-  const [clockOutId, setClockOutId] = useState("");
-  const [mode, setMode] = useState<"clockin" | "clockout">("clockin");
-  const [isReturningVisitor, setIsReturningVisitor] = useState(false);
-  const [lookingUp, setLookingUp] = useState(false);
-
-  const [showClockInPopup, setShowClockInPopup] = useState(false);
-  const [showClockOutPopup, setShowClockOutPopup] = useState(false);
 
   useEffect(() => {
-    const lookup = async () => {
-      const trimmed = idNumber.trim();
+    if (user) {
+      const name =
+        user.user_metadata?.full_name ||
+        user.user_metadata?.name ||
+        "";
 
-      if (trimmed.length < 4) {
-        setIsReturningVisitor(false);
-        setName("");
-        setGmail("");
-        setCollege("");
-        setEmployeeStatus("student");
-        return;
-      }
+      const email = user.email || "";
 
-      setLookingUp(true);
+      setFullName(name);
+      setGmail(email);
+    } else {
+      setFullName("");
+      setGmail("");
+    }
+  }, [user]);
 
-      const { data } = await supabase
-        .from("visitor_logs")
-        .select("visitor_name, college, employee_status, gmail")
-        .eq("id_number", trimmed)
-        .order("clock_in", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+  const handleGoogleLogin = async () => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: window.location.origin,
+      },
+    });
 
-      if (data) {
-        setIsReturningVisitor(true);
-        setName(data.visitor_name ?? "");
-        setCollege(data.college ?? "");
-        setGmail((data as { gmail?: string }).gmail ?? "");
-        setEmployeeStatus((data.employee_status as "student" | "teacher" | "staff") ?? "student");
-      } else {
-        setIsReturningVisitor(false);
-        setName("");
-        setGmail("");
-        setCollege("");
-        setEmployeeStatus("student");
-      }
-
-      setLookingUp(false);
-    };
-
-    const timer = setTimeout(lookup, 500);
-    return () => clearTimeout(timer);
-  }, [idNumber]);
+    if (error) {
+      toast.error(error.message);
+    }
+  };
 
   const handleClockIn = async () => {
-    if (!name.trim() || !gmail.trim() || !idNumber.trim() || !college || !purpose) {
-      toast.error("Please fill in all required fields");
+    if (!user) {
+      toast.error("Please sign in with Google first.");
       return;
     }
 
-    setLoading(true);
+    if (!studentNo || !fullName || !gmail || !college || !purpose) {
+      toast.error("Please complete all required fields.");
+      return;
+    }
 
-    const now = new Date().toISOString();
+    setSubmitting(true);
 
-    const { error } = await supabase.from("visitor_logs").insert({
-      visitor_name: name.trim(),
-      gmail: gmail.trim().toLowerCase(),
-      id_number: idNumber.trim(),
-      college,
-      purpose,
-      employee_status: employeeStatus,
-      clock_in: now,
-    });
+    try {
+      const { data: existingOpenLog, error: openLogError } = await supabase
+        .from("visitor_logs")
+        .select("id")
+        .eq("gmail", gmail)
+        .is("clock_out", null)
+        .maybeSingle();
 
-    setLoading(false);
+      if (openLogError) {
+        toast.error(openLogError.message);
+        return;
+      }
 
-    if (error) {
-      console.error("CLOCK IN ERROR:", error);
-      toast.error(error.message || "Failed to clock in. Please try again.");
-    } else {
-      setShowClockInPopup(true);
-      setTimeout(() => setShowClockInPopup(false), 3000);
+      if (existingOpenLog) {
+        toast.error("You already have an active visit.");
+        return;
+      }
 
-      setName("");
-      setGmail("");
-      setIdNumber("");
-      setCollege("");
+      const { error } = await supabase.from("visitor_logs").insert({
+        visitor_name: fullName,
+        gmail,
+        id_number: studentNo,
+        college,
+        purpose,
+        employee_status: "student",
+        clock_in: new Date().toISOString(),
+      });
+
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+
+      toast.success("Clocked in successfully.");
       setPurpose("");
-      setEmployeeStatus("student");
-      setIsReturningVisitor(false);
+    } finally {
+      setSubmitting(false);
     }
   };
 
   const handleClockOut = async () => {
-    if (!clockOutId.trim()) {
-      toast.error("Please enter your ID number");
+    if (!user) {
+      toast.error("Please sign in with Google first.");
       return;
     }
 
-    setLoading(true);
+    setSubmitting(true);
 
-    const { data, error: fetchError } = await supabase
-      .from("visitor_logs")
-      .select("id")
-      .eq("id_number", clockOutId.trim())
-      .is("clock_out", null)
-      .order("clock_in", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    try {
+      const { data: openLog, error: fetchError } = await supabase
+        .from("visitor_logs")
+        .select("id")
+        .eq("gmail", gmail)
+        .is("clock_out", null)
+        .order("clock_in", { ascending: false })
+        .maybeSingle();
 
-    if (fetchError) {
-      console.error("CLOCK OUT FETCH ERROR:", fetchError);
-      setLoading(false);
-      toast.error(fetchError.message || "Failed to find active visit.");
-      return;
-    }
+      if (fetchError) {
+        toast.error(fetchError.message);
+        return;
+      }
 
-    if (!data) {
-      setLoading(false);
-      toast.error("No active visit found for this ID number.");
-      return;
-    }
+      if (!openLog) {
+        toast.error("No active visit found for this account.");
+        return;
+      }
 
-    const { error } = await supabase
-      .from("visitor_logs")
-      .update({ clock_out: new Date().toISOString() })
-      .eq("id", data.id);
+      const { error: updateError } = await supabase
+        .from("visitor_logs")
+        .update({
+          clock_out: new Date().toISOString(),
+        })
+        .eq("id", openLog.id);
 
-    setLoading(false);
+      if (updateError) {
+        toast.error(updateError.message);
+        return;
+      }
 
-    if (error) {
-      console.error("CLOCK OUT UPDATE ERROR:", error);
-      toast.error(error.message || "Failed to clock out.");
-    } else {
-      setShowClockOutPopup(true);
-      setTimeout(() => setShowClockOutPopup(false), 3000);
-      setClockOutId("");
+      toast.success("Clocked out successfully.");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -182,243 +170,209 @@ const VisitorForm = () => {
     <Layout>
       <div className="relative min-h-[calc(100vh-5.5rem)] overflow-hidden">
         <div
-          className="absolute inset-0 z-0"
+          className="absolute inset-0"
           style={{
             backgroundImage: `url(${libraryBg})`,
             backgroundSize: "cover",
             backgroundPosition: "center",
-            filter: "blur(6px) brightness(0.4)",
+            filter: "blur(6px) brightness(0.45)",
           }}
         />
-        <div className="absolute inset-0 z-0 bg-background/30" />
+        <div className="absolute inset-0 bg-slate-950/45" />
 
-        <div className="relative z-10 container mx-auto max-w-3xl px-4 py-8 animate-fade-in">
-          <div className="mb-10 text-center">
-            <div className="inline-block mb-4 rounded-3xl gradient-hero px-8 py-4 shadow-elevated transition-all duration-500 hover:-translate-y-1 hover:scale-[1.02]">
-              <h2 className="text-4xl font-display font-extrabold tracking-tight text-primary-foreground sm:text-5xl">
+        <div className="relative z-10 mx-auto flex max-w-6xl flex-col items-center px-4 py-10">
+          <div className="mb-8 text-center">
+            <div className="inline-block rounded-[2rem] bg-blue-700/90 px-10 py-5 shadow-2xl">
+              <h1 className="text-4xl font-bold text-white md:text-6xl">
                 Welcome to
-              </h2>
-              <h2 className="text-4xl font-display font-extrabold tracking-tight text-accent sm:text-5xl">
+              </h1>
+              <h2 className="text-4xl font-bold text-yellow-400 md:text-6xl">
                 NEU University Library Lab
               </h2>
             </div>
 
-            <p className="mx-auto mt-3 max-w-md text-lg text-white/80 drop-shadow-lg">
+            <p className="mt-6 text-lg text-white/85">
               Sign in below to log your visit
             </p>
           </div>
 
-          <div className="mb-6 flex justify-center gap-3">
-            <Button
-              variant={mode === "clockin" ? "default" : "outline"}
+          <div className="mb-6 flex flex-wrap items-center justify-center gap-3">
+            <button
               onClick={() => setMode("clockin")}
-              className="gap-2 rounded-xl transition-all duration-300 hover:-translate-y-1 hover:scale-105 hover:shadow-xl"
+              className={`inline-flex items-center gap-2 rounded-2xl px-6 py-3 text-sm font-semibold transition ${
+                mode === "clockin"
+                  ? "bg-blue-700 text-white"
+                  : "bg-white text-slate-900"
+              }`}
             >
               <LogIn className="h-4 w-4" />
               Clock In
-            </Button>
+            </button>
 
-            <Button
-              variant={mode === "clockout" ? "default" : "outline"}
+            <button
               onClick={() => setMode("clockout")}
-              className="gap-2 rounded-xl transition-all duration-300 hover:-translate-y-1 hover:scale-105 hover:shadow-xl"
+              className={`inline-flex items-center gap-2 rounded-2xl px-6 py-3 text-sm font-semibold transition ${
+                mode === "clockout"
+                  ? "bg-blue-700 text-white"
+                  : "bg-white text-slate-900"
+              }`}
             >
               <LogOut className="h-4 w-4" />
               Clock Out
-            </Button>
+            </button>
+
+            {!loading && !user && (
+              <button
+                onClick={handleGoogleLogin}
+                className="inline-flex items-center gap-2 rounded-2xl border border-white/30 bg-white/10 px-6 py-3 text-sm font-semibold text-white backdrop-blur-md transition hover:bg-white/20"
+              >
+                Continue with Google
+              </button>
+            )}
           </div>
 
-          {mode === "clockin" ? (
-            <Card className="rounded-3xl bg-card/95 shadow-elevated backdrop-blur-sm">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-4xl">
-                  <UserCheck className="h-6 w-6 text-primary" />
-                  Clock In
-                </CardTitle>
-                <CardDescription>
-                  {isReturningVisitor
-                    ? "Welcome back! Your details have been auto-filled."
-                    : "Enter your details to log your visit"}
-                </CardDescription>
-              </CardHeader>
+          <div className="w-full max-w-3xl rounded-[2rem] border border-white/30 bg-white/85 p-6 shadow-2xl backdrop-blur-xl md:p-8">
+            <div className="mb-6">
+              <h3 className="text-3xl font-bold text-slate-900">
+                {mode === "clockin" ? "Clock In" : "Clock Out"}
+              </h3>
+              <p className="mt-2 text-slate-500">
+                {mode === "clockin"
+                  ? "Enter your details to log your visit"
+                  : "Use your Google account to close your active visit"}
+              </p>
+            </div>
 
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="idNumber">Student/Employee No. *</Label>
-                  <Input
-                    id="idNumber"
-                    placeholder="2024-00001"
-                    value={idNumber}
-                    onChange={(e) => setIdNumber(e.target.value)}
-                  />
-                  {lookingUp && (
-                    <p className="text-xs text-muted-foreground">Looking up your details...</p>
-                  )}
-                </div>
+            {!user ? (
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center">
+                <p className="mb-4 text-slate-700">
+                  Sign in with your Google account first.
+                </p>
+                <button
+                  onClick={handleGoogleLogin}
+                  className="rounded-2xl bg-blue-700 px-6 py-3 font-semibold text-white transition hover:bg-blue-800"
+                >
+                  Sign in with Google
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="mb-6 grid gap-4 md:grid-cols-2">
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-700">
+                      Full Name
+                    </label>
+                    <div className="flex h-14 items-center gap-3 rounded-2xl border border-slate-300 bg-slate-100 px-4 text-slate-700">
+                      <User className="h-4 w-4" />
+                      <span>{fullName || "No name from Google"}</span>
+                    </div>
+                  </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="name">Full Name *</Label>
-                  <Input
-                    id="name"
-                    placeholder="Juan Dela Cruz"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="gmail">Gmail *</Label>
-                  <div className="relative">
-                    <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                      id="gmail"
-                      type="email"
-                      placeholder="name@gmail.com"
-                      value={gmail}
-                      onChange={(e) => setGmail(e.target.value)}
-                      className="pl-10"
-                    />
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-700">
+                      Gmail
+                    </label>
+                    <div className="flex h-14 items-center gap-3 rounded-2xl border border-slate-300 bg-slate-100 px-4 text-slate-700">
+                      <Mail className="h-4 w-4" />
+                      <span>{gmail}</span>
+                    </div>
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label>College / Department *</Label>
-                  <Select value={college} onValueChange={setCollege}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select your college" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {colleges.map((c) => (
-                        <SelectItem key={c} value={c}>
-                          {c}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                {mode === "clockin" ? (
+                  <>
+                    <div className="mb-4">
+                      <label className="mb-2 block text-sm font-medium text-slate-700">
+                        Student/Employee No. *
+                      </label>
+                      <input
+                        type="text"
+                        value={studentNo}
+                        onChange={(e) => setStudentNo(e.target.value)}
+                        placeholder="2024-00001"
+                        className="h-14 w-full rounded-2xl border border-slate-300 bg-white px-4 text-slate-900 outline-none transition focus:border-blue-600"
+                      />
+                    </div>
 
-                <div className="space-y-2">
-                  <Label>Purpose of Visit *</Label>
-                  <Select value={purpose} onValueChange={setPurpose}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select purpose" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {purposes.map((p) => (
-                        <SelectItem key={p} value={p}>
-                          {p}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                    <div className="mb-4">
+                      <label className="mb-2 block text-sm font-medium text-slate-700">
+                        College / Department *
+                      </label>
+                      <select
+                        value={college}
+                        onChange={(e) => setCollege(e.target.value)}
+                        className="h-14 w-full rounded-2xl border border-slate-300 bg-white px-4 text-slate-900 outline-none transition focus:border-blue-600"
+                      >
+                        <option value="">Select your college</option>
+                        {colleges.map((item) => (
+                          <option key={item} value={item}>
+                            {item}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
 
-                <div className="space-y-2">
-                  <Label>Status</Label>
-                  <Select
-                    value={employeeStatus}
-                    onValueChange={(v) => setEmployeeStatus(v as "student" | "teacher" | "staff")}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="student">Student</SelectItem>
-                      <SelectItem value="teacher">Teacher</SelectItem>
-                      <SelectItem value="staff">Staff</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                    <div className="mb-6">
+                      <label className="mb-2 block text-sm font-medium text-slate-700">
+                        Purpose of Visit *
+                      </label>
+                      <select
+                        value={purpose}
+                        onChange={(e) => setPurpose(e.target.value)}
+                        className="h-14 w-full rounded-2xl border border-slate-300 bg-white px-4 text-slate-900 outline-none transition focus:border-blue-600"
+                      >
+                        <option value="">Select purpose</option>
+                        {purposes.map((item) => (
+                          <option key={item} value={item}>
+                            {item}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
 
-                <Button onClick={handleClockIn} disabled={loading} className="w-full gap-2 rounded-xl" size="lg">
-                  <Clock className="h-4 w-4" />
-                  {loading ? "Clocking in..." : "Clock In"}
-                </Button>
-              </CardContent>
-            </Card>
-          ) : (
-            <Card className="rounded-3xl bg-card/95 shadow-elevated backdrop-blur-sm">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-4xl">
-                  <LogOut className="h-6 w-6 text-primary" />
-                  Clock Out
-                </CardTitle>
-                <CardDescription>Enter your ID number to clock out</CardDescription>
-              </CardHeader>
+                    <button
+                      onClick={handleClockIn}
+                      disabled={submitting}
+                      className="h-14 w-full rounded-2xl bg-blue-700 text-lg font-semibold text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {submitting ? "Logging In..." : "Log In"}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <div className="mb-6 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-slate-700">
+                      Your active visit will be matched using your Google email:
+                      <span className="ml-1 font-semibold">{gmail}</span>
+                    </div>
 
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="clockOutId">Student/Employee No. *</Label>
-                  <Input
-                    id="clockOutId"
-                    placeholder="2024-00001"
-                    value={clockOutId}
-                    onChange={(e) => setClockOutId(e.target.value)}
-                  />
-                </div>
+                    <button
+                      onClick={handleClockOut}
+                      disabled={submitting}
+                      className="h-14 w-full rounded-2xl bg-slate-900 text-lg font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {submitting ? "Clocking Out..." : "Clock Out"}
+                    </button>
+                  </>
+                )}
 
-                <Button
-                  onClick={handleClockOut}
-                  disabled={loading}
-                  className="w-full gap-2 rounded-xl"
-                  size="lg"
-                  variant="secondary"
-                >
-                  <LogOut className="h-4 w-4" />
-                  {loading ? "Clocking out..." : "Clock Out"}
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-
-          <footer className="mt-10 text-center text-sm text-white/80">
-            © 2026 New Era University Library Lab. All rights reserved.
-          </footer>
+                {isAdmin && (
+                  <div className="mt-4 flex justify-end">
+                    <a
+                      href="/admin"
+                      className="inline-flex items-center gap-2 rounded-2xl border border-amber-300 bg-amber-100 px-4 py-2 text-sm font-semibold text-amber-900"
+                    >
+                      <Shield className="h-4 w-4" />
+                      Admin
+                    </a>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         </div>
-
-        {showClockInPopup && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-300">
-            <div className="mx-4 w-full max-w-md rounded-3xl bg-white p-8 text-center shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4 duration-500">
-              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
-                <Sparkles className="h-8 w-8 text-green-600" />
-              </div>
-              <h2 className="mb-2 text-3xl font-bold text-primary">Welcome to NEU Library!</h2>
-              <p className="mb-5 text-muted-foreground">
-                Your visit has been successfully recorded.
-              </p>
-              <Button
-                onClick={() => setShowClockInPopup(false)}
-                className="rounded-xl px-6"
-              >
-                Continue
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {showClockOutPopup && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-300">
-            <div className="mx-4 w-full max-w-md rounded-3xl bg-white p-8 text-center shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4 duration-500">
-              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-100">
-                <CheckCircle2 className="h-8 w-8 text-blue-600" />
-              </div>
-              <h2 className="mb-2 text-3xl font-bold text-primary">Thank you for visiting!</h2>
-              <p className="mb-5 text-muted-foreground">
-                You have successfully clocked out. Have a great day.
-              </p>
-              <Button
-                onClick={() => setShowClockOutPopup(false)}
-                variant="secondary"
-                className="rounded-xl px-6"
-              >
-                Close
-              </Button>
-            </div>
-          </div>
-        )}
       </div>
     </Layout>
   );
 };
 
-export default VisitorForm;
+export default VisitorPage;
