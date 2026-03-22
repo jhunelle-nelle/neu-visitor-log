@@ -692,9 +692,9 @@ const AdminDashboard = () => {
                     Admin Management
                   </h2>
                 </div>
-                <p className="text-sm text-white/55">
-                  Add or remove admin access for NEU email accounts
-                </p>
+               <p className="text-sm text-white/55">
+  View and manage authorized admin accounts
+</p>  
               </div>
 
               <div className="overflow-x-auto rounded-2xl border border-white/10">
