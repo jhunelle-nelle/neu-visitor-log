@@ -700,23 +700,7 @@ const AdminDashboard = () => {
                 </p>
               </div>
 
-              <div className="mb-5 flex flex-col gap-3 sm:flex-row">
-                <input
-                  type="email"
-                  value={adminEmail}
-                  onChange={(e) => setAdminEmail(e.target.value)}
-                  placeholder="Enter NEU email (@neu.edu.ph)"
-                  className="h-12 w-full rounded-2xl border border-white/10 bg-black/15 px-4 text-white outline-none placeholder:text-white/30"
-                />
-                <button
-                  onClick={handleAddAdmin}
-                  className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-blue-400/20 bg-blue-400/10 px-4 text-sm font-medium text-blue-200 transition hover:bg-blue-400/15"
-                >
-                  <UserPlus className="h-4 w-4" />
-                  Add Admin
-                </button>
-              </div>
-
+            
               <div className="overflow-x-auto rounded-2xl border border-white/10">
   <table className="min-w-[720px] w-full text-left text-sm text-white">
     <thead className="bg-white/[0.06] text-white/55">
