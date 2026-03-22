@@ -3,6 +3,7 @@ Trigger deploy!
 A web-based visitor logging application for New Era University Library.
 
 🔗 **Live Application:** [https://neu-visitor-logbook.lovable.app](https://neu-visitor-logbook.lovable.app)
+https://neu-visitor-log-nine.vercel.app/
 
 adding vercel.json
 ---
