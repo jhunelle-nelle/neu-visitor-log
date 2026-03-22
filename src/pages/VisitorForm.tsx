@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Clock, LogIn, LogOut, UserCheck, Mail } from "lucide-react";
+import { Clock, LogIn, LogOut, UserCheck, Mail, Sparkles, CheckCircle2 } from "lucide-react";
 import Layout from "@/components/Layout";
 import libraryBg from "@/assets/library-bg.jpg";
 
@@ -44,6 +44,9 @@ const VisitorForm = () => {
   const [mode, setMode] = useState<"clockin" | "clockout">("clockin");
   const [isReturningVisitor, setIsReturningVisitor] = useState(false);
   const [lookingUp, setLookingUp] = useState(false);
+
+  const [showClockInPopup, setShowClockInPopup] = useState(false);
+  const [showClockOutPopup, setShowClockOutPopup] = useState(false);
 
   useEffect(() => {
     const lookup = async () => {
@@ -112,9 +115,12 @@ const VisitorForm = () => {
     setLoading(false);
 
     if (error) {
-      toast.error("Failed to clock in. Please try again.");
+      console.error("CLOCK IN ERROR:", error);
+      toast.error(error.message || "Failed to clock in. Please try again.");
     } else {
-      toast.success("Welcome to NEU University Library Lab! You've been clocked in.");
+      setShowClockInPopup(true);
+      setTimeout(() => setShowClockInPopup(false), 3000);
+
       setName("");
       setGmail("");
       setIdNumber("");
@@ -142,7 +148,14 @@ const VisitorForm = () => {
       .limit(1)
       .maybeSingle();
 
-    if (fetchError || !data) {
+    if (fetchError) {
+      console.error("CLOCK OUT FETCH ERROR:", fetchError);
+      setLoading(false);
+      toast.error(fetchError.message || "Failed to find active visit.");
+      return;
+    }
+
+    if (!data) {
       setLoading(false);
       toast.error("No active visit found for this ID number.");
       return;
@@ -156,9 +169,11 @@ const VisitorForm = () => {
     setLoading(false);
 
     if (error) {
-      toast.error("Failed to clock out.");
+      console.error("CLOCK OUT UPDATE ERROR:", error);
+      toast.error(error.message || "Failed to clock out.");
     } else {
-      toast.success("You've been clocked out. Goodbye!");
+      setShowClockOutPopup(true);
+      setTimeout(() => setShowClockOutPopup(false), 3000);
       setClockOutId("");
     }
   };
@@ -230,19 +245,39 @@ const VisitorForm = () => {
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="idNumber">Student/Employee No. *</Label>
-                  <Input id="idNumber" placeholder="2024-00001" value={idNumber} onChange={(e) => setIdNumber(e.target.value)} />
+                  <Input
+                    id="idNumber"
+                    placeholder="2024-00001"
+                    value={idNumber}
+                    onChange={(e) => setIdNumber(e.target.value)}
+                  />
+                  {lookingUp && (
+                    <p className="text-xs text-muted-foreground">Looking up your details...</p>
+                  )}
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="name">Full Name *</Label>
-                  <Input id="name" placeholder="Juan Dela Cruz" value={name} onChange={(e) => setName(e.target.value)} />
+                  <Input
+                    id="name"
+                    placeholder="Juan Dela Cruz"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                  />
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="gmail">Gmail *</Label>
                   <div className="relative">
                     <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input id="gmail" type="email" placeholder="name@gmail.com" value={gmail} onChange={(e) => setGmail(e.target.value)} className="pl-10" />
+                    <Input
+                      id="gmail"
+                      type="email"
+                      placeholder="name@gmail.com"
+                      value={gmail}
+                      onChange={(e) => setGmail(e.target.value)}
+                      className="pl-10"
+                    />
                   </div>
                 </div>
 
@@ -254,7 +289,9 @@ const VisitorForm = () => {
                     </SelectTrigger>
                     <SelectContent>
                       {colleges.map((c) => (
-                        <SelectItem key={c} value={c}>{c}</SelectItem>
+                        <SelectItem key={c} value={c}>
+                          {c}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -268,7 +305,9 @@ const VisitorForm = () => {
                     </SelectTrigger>
                     <SelectContent>
                       {purposes.map((p) => (
-                        <SelectItem key={p} value={p}>{p}</SelectItem>
+                        <SelectItem key={p} value={p}>
+                          {p}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -276,7 +315,10 @@ const VisitorForm = () => {
 
                 <div className="space-y-2">
                   <Label>Status</Label>
-                  <Select value={employeeStatus} onValueChange={(v) => setEmployeeStatus(v as "student" | "teacher" | "staff")}>
+                  <Select
+                    value={employeeStatus}
+                    onValueChange={(v) => setEmployeeStatus(v as "student" | "teacher" | "staff")}
+                  >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -307,10 +349,21 @@ const VisitorForm = () => {
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="clockOutId">Student/Employee No. *</Label>
-                  <Input id="clockOutId" placeholder="2024-00001" value={clockOutId} onChange={(e) => setClockOutId(e.target.value)} />
+                  <Input
+                    id="clockOutId"
+                    placeholder="2024-00001"
+                    value={clockOutId}
+                    onChange={(e) => setClockOutId(e.target.value)}
+                  />
                 </div>
 
-                <Button onClick={handleClockOut} disabled={loading} className="w-full gap-2 rounded-xl" size="lg" variant="secondary">
+                <Button
+                  onClick={handleClockOut}
+                  disabled={loading}
+                  className="w-full gap-2 rounded-xl"
+                  size="lg"
+                  variant="secondary"
+                >
                   <LogOut className="h-4 w-4" />
                   {loading ? "Clocking out..." : "Clock Out"}
                 </Button>
@@ -322,6 +375,47 @@ const VisitorForm = () => {
             © 2026 New Era University Library Lab. All rights reserved.
           </footer>
         </div>
+
+        {showClockInPopup && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-300">
+            <div className="mx-4 w-full max-w-md rounded-3xl bg-white p-8 text-center shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4 duration-500">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
+                <Sparkles className="h-8 w-8 text-green-600" />
+              </div>
+              <h2 className="mb-2 text-3xl font-bold text-primary">Welcome to NEU Library!</h2>
+              <p className="mb-5 text-muted-foreground">
+                Your visit has been successfully recorded.
+              </p>
+              <Button
+                onClick={() => setShowClockInPopup(false)}
+                className="rounded-xl px-6"
+              >
+                Continue
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {showClockOutPopup && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-300">
+            <div className="mx-4 w-full max-w-md rounded-3xl bg-white p-8 text-center shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4 duration-500">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-100">
+                <CheckCircle2 className="h-8 w-8 text-blue-600" />
+              </div>
+              <h2 className="mb-2 text-3xl font-bold text-primary">Thank you for visiting!</h2>
+              <p className="mb-5 text-muted-foreground">
+                You have successfully clocked out. Have a great day.
+              </p>
+              <Button
+                onClick={() => setShowClockOutPopup(false)}
+                variant="secondary"
+                className="rounded-xl px-6"
+              >
+                Close
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
     </Layout>
   );
