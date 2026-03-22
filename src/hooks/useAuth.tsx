@@ -32,6 +32,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const allowedAdmins = [
       "jhunelle.remo@neu.edu.ph",
       "jcesperanza@neu.edu.ph",
+      "joshuaandre.tindoy@neu.edu.ph",
     ];
 
     const email = (currentUser.email ?? "").toLowerCase().trim();
