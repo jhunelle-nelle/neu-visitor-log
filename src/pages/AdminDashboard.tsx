@@ -717,35 +717,35 @@ const AdminDashboard = () => {
                 </button>
               </div>
 
-              <div className="overflow-hidden rounded-2xl border border-white/10">
-                <table className="w-full text-left text-sm text-white">
-                  <thead className="bg-white/[0.06] text-white/55">
-                    <tr>
-                      <th className="px-4 py-3 font-medium">Email</th>
-                      <th className="px-4 py-3 font-medium">Added By</th>
-                      <th className="px-4 py-3 font-medium">Date Added</th>
-                      <th className="px-4 py-3 font-medium">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {admins.map((item) => (
-                      <tr key={item.id} className="border-t border-white/8">
-                        <td className="px-4 py-3">{item.email}</td>
-                        <td className="px-4 py-3">{item.addedBy}</td>
-                        <td className="px-4 py-3">{item.dateAdded}</td>
-                        <td className="px-4 py-3">
-                          <button
-                            onClick={() => handleRemoveAdmin(item.id)}
-                            className="rounded-xl border border-red-400/20 bg-red-400/10 px-3 py-1.5 text-xs font-medium text-red-300 transition hover:bg-red-400/15"
-                          >
-                            Remove
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <div className="overflow-x-auto rounded-2xl border border-white/10">
+  <table className="min-w-[720px] w-full text-left text-sm text-white">
+    <thead className="bg-white/[0.06] text-white/55">
+      <tr>
+        <th className="px-4 py-3 font-medium">Email</th>
+        <th className="px-4 py-3 font-medium">Added By</th>
+        <th className="px-4 py-3 font-medium">Date Added</th>
+        <th className="px-4 py-3 font-medium w-[120px] text-right">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {admins.map((item) => (
+        <tr key={item.id} className="border-t border-white/8">
+          <td className="px-4 py-3">{item.email}</td>
+          <td className="px-4 py-3">{item.addedBy}</td>
+          <td className="px-4 py-3">{item.dateAdded}</td>
+          <td className="px-4 py-3 text-right">
+            <button
+              onClick={() => handleRemoveAdmin(item.id)}
+              className="inline-flex items-center justify-center whitespace-nowrap rounded-xl border border-red-400/20 bg-red-400/10 px-3 py-1.5 text-xs font-medium text-red-300 transition hover:bg-red-400/15"
+            >
+              Remove
+            </button>
+          </td>
+        </tr>
+      ))}
+    </tbody>
+  </table>
+</div>
             </section>
 
             <section className="rounded-3xl border border-white/10 bg-white/[0.06] p-6 shadow-2xl backdrop-blur-xl">
