@@ -1,7 +1,5 @@
-import VisitorForm from "@/pages/VisitorForm";
+import VisitorForm from "./VisitorForm";
 
-const Index = () => {
+export default function Index() {
   return <VisitorForm />;
-};
-
-export default Index;
+}
