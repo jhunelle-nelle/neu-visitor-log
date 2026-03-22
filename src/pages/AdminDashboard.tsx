@@ -737,8 +737,8 @@ const AdminDashboard = () => {
                   </h2>
                 </div>
                 <p className="text-sm text-white/55">
-                  Add or remove staff and faculty members
-                </p>
+  View and manage staff and faculty members
+</p>
               </div>
 
               <div className="overflow-hidden rounded-2xl border border-white/10">
