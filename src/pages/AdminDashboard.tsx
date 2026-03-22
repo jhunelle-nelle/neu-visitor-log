@@ -1,838 +1,893 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { format, startOfWeek, endOfWeek, subDays } from "date-fns";
 import {
-  Shield,
+  Search,
   Users,
-  UserCheck,
+  UserRound,
   Clock3,
-  Download,
+  Filter,
+  Shield,
+  GraduationCap,
+  RefreshCw,
+  UserPlus,
   Ban,
   CheckCircle2,
-  Search,
-  CalendarDays,
-  Filter,
-  RefreshCw,
-  UserCog,
+  Activity,
 } from "lucide-react";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
-
+import { toast } from "sonner";
 import Layout from "@/components/Layout";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+import libraryBg from "@/assets/library-bg.jpg";
 
-type VisitLog = {
+type LogRow = {
   id: string;
-  student_no: string;
-  full_name: string;
+  visitor_name: string | null;
+  gmail?: string | null;
+  id_number: string | null;
   college: string | null;
   purpose: string | null;
-  status: string | null;
-  time_in: string | null;
-  time_out: string | null;
-  created_at: string;
+  employee_status: string | null;
+  clock_in: string | null;
+  clock_out: string | null;
 };
 
-type BlockedVisitor = {
+type ManagedEmail = {
   id: string;
-  student_no: string;
-  full_name: string | null;
-  reason: string | null;
-  blocked: boolean;
-  created_at: string;
+  email: string;
+  addedBy: string;
+  dateAdded: string;
 };
-
-type UserRoleRow = {
-  id: string;
-  user_id: string;
-  role: "admin" | "user";
-};
-
-const allowedAdmins = [
-  "jcesperanza@neu.edu.ph",
-  "jhunelle.remo@neu.edu.ph",
-  "eduardo.donato@neu.edu.ph",
-];
 
 const AdminDashboard = () => {
-  const { user, loading } = useAuth();
+  const { user, loading, isAdmin } = useAuth();
   const navigate = useNavigate();
 
-  const [logs, setLogs] = useState<VisitLog[]>([]);
-  const [filteredLogs, setFilteredLogs] = useState<VisitLog[]>([]);
-  const [blockedVisitors, setBlockedVisitors] = useState<BlockedVisitor[]>([]);
-  const [userRoles, setUserRoles] = useState<UserRoleRow[]>([]);
-  const [loadingData, setLoadingData] = useState(true);
+  const [logs, setLogs] = useState<LogRow[]>([]);
+  const [loadingLogs, setLoadingLogs] = useState(true);
 
   const [search, setSearch] = useState("");
-  const [purposeFilter, setPurposeFilter] = useState("");
-  const [collegeFilter, setCollegeFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
+  const [selectedCollege, setSelectedCollege] = useState("All Colleges");
+  const [selectedStatus, setSelectedStatus] = useState("All");
+  const [selectedPurpose, setSelectedPurpose] = useState("All Purposes");
+  const [dateRange, setDateRange] = useState("Today");
 
-  const [dateMode, setDateMode] = useState<"today" | "week" | "range">("today");
-  const [startDate, setStartDate] = useState(format(new Date(), "yyyy-MM-dd"));
-  const [endDate, setEndDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [blockedIds, setBlockedIds] = useState<string[]>([]);
 
-  const [blockStudentNo, setBlockStudentNo] = useState("");
-  const [blockName, setBlockName] = useState("");
-  const [blockReason, setBlockReason] = useState("");
+  const [adminEmail, setAdminEmail] = useState("");
+  const [staffEmail, setStaffEmail] = useState("");
 
-  const [roleUserId, setRoleUserId] = useState("");
-  const [roleValue, setRoleValue] = useState<"admin" | "user">("user");
+  const [admins, setAdmins] = useState<ManagedEmail[]>([
+    {
+      id: "1",
+      email: "jhunelle.remo@neu.edu.ph",
+      addedBy: "system",
+      dateAdded: new Date().toLocaleDateString(),
+    },
+    {
+      id: "2",
+      email: "jcesperanza@neu.edu.ph",
+      addedBy: "system",
+      dateAdded: new Date().toLocaleDateString(),
+    },
+  ]);
+
+  const [staffFaculty, setStaffFaculty] = useState<ManagedEmail[]>([
+    {
+      id: "1",
+      email: "jcesperanza@neu.edu.ph",
+      addedBy: "system",
+      dateAdded: new Date().toLocaleDateString(),
+    },
+  ]);
 
   useEffect(() => {
     if (!loading) {
       if (!user) {
+        toast.error("Please log in first.");
         navigate("/login");
-        return;
-      }
-
-      const isAllowed = allowedAdmins.includes(user.email ?? "");
-      if (!isAllowed) {
-        toast.error("You are not allowed to access the admin dashboard.");
+      } else if (!isAdmin) {
+        toast.error("You don't have access");
         navigate("/");
-        return;
       }
-
-      fetchAllData();
     }
-  }, [user, loading, navigate]);
+  }, [user, loading, isAdmin, navigate]);
+
+  const fetchLogs = async () => {
+    setLoadingLogs(true);
+
+    const { data, error } = await supabase
+      .from("visitor_logs")
+      .select(
+        "id, visitor_name, gmail, id_number, college, purpose, employee_status, clock_in, clock_out"
+      )
+      .order("clock_in", { ascending: false });
+
+    if (error) {
+      console.error(error);
+      toast.error("Failed to load visitor logs");
+    } else {
+      setLogs((data as LogRow[]) ?? []);
+    }
+
+    setLoadingLogs(false);
+  };
 
   useEffect(() => {
-    applyFilters();
-  }, [logs, search, purposeFilter, collegeFilter, statusFilter, dateMode, startDate, endDate]);
-
-  const fetchAllData = async () => {
-    try {
-      setLoadingData(true);
-      await Promise.all([
-        fetchVisitLogs(),
-        fetchBlockedVisitors(),
-        fetchUserRoles(),
-      ]);
-    } catch (error) {
-      console.error(error);
-      toast.error("Failed to load admin dashboard data.");
-    } finally {
-      setLoadingData(false);
+    if (user && isAdmin) {
+      void fetchLogs();
     }
-  };
+  }, [user, isAdmin]);
 
-  const fetchVisitLogs = async () => {
-    const { data, error } = await supabase
-      .from("visit_logs")
-      .select("*")
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      console.error(error);
-      toast.error("Failed to fetch visit logs.");
-      return;
-    }
-
-    setLogs((data as VisitLog[]) || []);
-  };
-
-  const fetchBlockedVisitors = async () => {
-    const { data, error } = await supabase
-      .from("blocked_visitors")
-      .select("*")
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      console.error(error);
-      return;
-    }
-
-    setBlockedVisitors((data as BlockedVisitor[]) || []);
-  };
-
-  const fetchUserRoles = async () => {
-    const { data, error } = await supabase
-      .from("user_roles")
-      .select("*")
-      .order("role", { ascending: true });
-
-    if (error) {
-      console.error(error);
-      return;
-    }
-
-    setUserRoles((data as UserRoleRow[]) || []);
-  };
-
-  const applyFilters = () => {
+  const filteredLogs = useMemo(() => {
     let result = [...logs];
 
+    const q = search.toLowerCase().trim();
+    if (q) {
+      result = result.filter((row) => {
+        const values = [
+          row.visitor_name,
+          row.gmail,
+          row.id_number,
+          row.college,
+          row.purpose,
+          row.employee_status,
+          row.clock_in ? new Date(row.clock_in).toLocaleString() : "",
+          row.clock_out ? new Date(row.clock_out).toLocaleString() : "",
+        ];
+
+        return values.some((v) => String(v ?? "").toLowerCase().includes(q));
+      });
+    }
+
+    if (selectedCollege !== "All Colleges") {
+      result = result.filter((row) => row.college === selectedCollege);
+    }
+
+    if (selectedStatus !== "All") {
+      result = result.filter(
+        (row) =>
+          (row.employee_status ?? "").toLowerCase() ===
+          selectedStatus.toLowerCase()
+      );
+    }
+
+    if (selectedPurpose !== "All Purposes") {
+      result = result.filter((row) => row.purpose === selectedPurpose);
+    }
+
     const now = new Date();
-    const todayStr = format(now, "yyyy-MM-dd");
-    const weekStart = startOfWeek(now, { weekStartsOn: 1 });
-    const weekEnd = endOfWeek(now, { weekStartsOn: 1 });
 
-    result = result.filter((log) => {
-      const logDate = log.created_at ? new Date(log.created_at) : null;
-      if (!logDate) return false;
+    if (dateRange === "Today") {
+      result = result.filter((row) => {
+        if (!row.clock_in) return false;
+        return new Date(row.clock_in).toDateString() === now.toDateString();
+      });
+    } else if (dateRange === "This Week") {
+      const start = new Date(now);
+      start.setDate(now.getDate() - now.getDay());
+      start.setHours(0, 0, 0, 0);
 
-      if (dateMode === "today") {
-        return format(logDate, "yyyy-MM-dd") === todayStr;
-      }
-
-      if (dateMode === "week") {
-        return logDate >= weekStart && logDate <= weekEnd;
-      }
-
-      if (dateMode === "range") {
-        const logDay = format(logDate, "yyyy-MM-dd");
-        return logDay >= startDate && logDay <= endDate;
-      }
-
-      return true;
-    });
-
-    if (search.trim()) {
-      const s = search.toLowerCase();
-      result = result.filter(
-        (log) =>
-          log.full_name?.toLowerCase().includes(s) ||
-          log.student_no?.toLowerCase().includes(s) ||
-          log.college?.toLowerCase().includes(s) ||
-          log.purpose?.toLowerCase().includes(s)
-      );
+      result = result.filter((row) => {
+        if (!row.clock_in) return false;
+        return new Date(row.clock_in) >= start;
+      });
+    } else if (dateRange === "This Month") {
+      result = result.filter((row) => {
+        if (!row.clock_in) return false;
+        const d = new Date(row.clock_in);
+        return (
+          d.getMonth() === now.getMonth() &&
+          d.getFullYear() === now.getFullYear()
+        );
+      });
     }
 
-    if (purposeFilter.trim()) {
-      result = result.filter(
-        (log) => (log.purpose || "").toLowerCase() === purposeFilter.toLowerCase()
-      );
-    }
+    return result;
+  }, [logs, search, selectedCollege, selectedStatus, selectedPurpose, dateRange]);
 
-    if (collegeFilter.trim()) {
-      result = result.filter(
-        (log) => (log.college || "").toLowerCase() === collegeFilter.toLowerCase()
-      );
-    }
+  const uniqueVisitors = new Set(
+    filteredLogs.map((row) => row.id_number || row.gmail || row.id).filter(Boolean)
+  ).size;
 
-    if (statusFilter.trim()) {
-      result = result.filter(
-        (log) => (log.status || "").toLowerCase() === statusFilter.toLowerCase()
-      );
-    }
+  const activeVisitors = filteredLogs.filter((row) => !row.clock_out).length;
 
-    setFilteredLogs(result);
-  };
+  const avgDuration = useMemo(() => {
+    const completed = filteredLogs.filter((row) => row.clock_in && row.clock_out);
+    if (!completed.length) return 0;
 
-  const stats = useMemo(() => {
-    const totalVisitors = filteredLogs.length;
-    const completedVisits = filteredLogs.filter((log) => !!log.time_out).length;
-    const activeVisits = filteredLogs.filter((log) => !log.time_out).length;
-    const uniqueVisitors = new Set(filteredLogs.map((log) => log.student_no)).size;
+    const total = completed.reduce((sum, row) => {
+      const start = new Date(row.clock_in as string).getTime();
+      const end = new Date(row.clock_out as string).getTime();
+      return sum + Math.max(0, Math.round((end - start) / 60000));
+    }, 0);
 
-    return {
-      totalVisitors,
-      completedVisits,
-      activeVisits,
-      uniqueVisitors,
-    };
+    return Math.round(total / completed.length);
   }, [filteredLogs]);
 
-  const chartData = useMemo(() => {
-    const map = new Map<string, number>();
+  const todayCount = useMemo(() => {
+    const now = new Date();
+    return logs.filter((row) => {
+      if (!row.clock_in) return false;
+      return new Date(row.clock_in).toDateString() === now.toDateString();
+    }).length;
+  }, [logs]);
 
-    const source =
-      dateMode === "today"
-        ? [...Array(1)].map(() => new Date())
-        : dateMode === "week"
-        ? [...Array(7)].map((_, i) => subDays(new Date(), 6 - i))
-        : [];
+  const thisWeekCount = useMemo(() => {
+    const now = new Date();
+    const start = new Date(now);
+    start.setDate(now.getDate() - now.getDay());
+    start.setHours(0, 0, 0, 0);
 
-    if (dateMode === "today") {
-      const label = format(new Date(), "MMM dd");
-      map.set(label, 0);
-    }
+    return logs.filter((row) => {
+      if (!row.clock_in) return false;
+      return new Date(row.clock_in) >= start;
+    }).length;
+  }, [logs]);
 
-    if (dateMode === "week") {
-      source.forEach((date) => {
-        const label = format(date, "MMM dd");
-        map.set(label, 0);
-      });
-    }
+  const thisMonthCount = useMemo(() => {
+    const now = new Date();
+    return logs.filter((row) => {
+      if (!row.clock_in) return false;
+      const d = new Date(row.clock_in);
+      return (
+        d.getMonth() === now.getMonth() &&
+        d.getFullYear() === now.getFullYear()
+      );
+    }).length;
+  }, [logs]);
 
-    if (dateMode === "range") {
-      filteredLogs.forEach((log) => {
-        const label = format(new Date(log.created_at), "MMM dd");
-        map.set(label, (map.get(label) || 0) + 1);
-      });
+  const collegeStats = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        totalVisits: number;
+        uniqueVisitors: Set<string>;
+      }
+    >();
 
-      return Array.from(map.entries()).map(([date, visitors]) => ({
-        date,
-        visitors,
-      }));
-    }
+    filteredLogs.forEach((row) => {
+      const college = row.college?.trim() || "Other";
+      const visitorKey = row.id_number || row.gmail || row.id;
 
-    filteredLogs.forEach((log) => {
-      const label = format(new Date(log.created_at), "MMM dd");
-      map.set(label, (map.get(label) || 0) + 1);
+      if (!map.has(college)) {
+        map.set(college, {
+          totalVisits: 0,
+          uniqueVisitors: new Set<string>(),
+        });
+      }
+
+      const entry = map.get(college)!;
+      entry.totalVisits += 1;
+      if (visitorKey) entry.uniqueVisitors.add(visitorKey);
     });
 
-    return Array.from(map.entries()).map(([date, visitors]) => ({
-      date,
-      visitors,
-    }));
-  }, [filteredLogs, dateMode]);
+    return Array.from(map.entries())
+      .map(([college, data]) => ({
+        college,
+        totalVisits: data.totalVisits,
+        uniqueVisitors: data.uniqueVisitors.size,
+      }))
+      .sort((a, b) => b.totalVisits - a.totalVisits);
+  }, [filteredLogs]);
 
-  const uniquePurposes = useMemo(() => {
-    return Array.from(new Set(logs.map((l) => l.purpose).filter(Boolean))) as string[];
+  const collegeOptions = useMemo(() => {
+    const values = Array.from(
+      new Set(logs.map((row) => row.college).filter(Boolean))
+    ) as string[];
+    return values.sort((a, b) => a.localeCompare(b));
   }, [logs]);
 
-  const uniqueColleges = useMemo(() => {
-    return Array.from(new Set(logs.map((l) => l.college).filter(Boolean))) as string[];
+  const purposeOptions = useMemo(() => {
+    const values = Array.from(
+      new Set(logs.map((row) => row.purpose).filter(Boolean))
+    ) as string[];
+    return values.sort((a, b) => a.localeCompare(b));
   }, [logs]);
 
-  const uniqueStatuses = useMemo(() => {
-    return Array.from(new Set(logs.map((l) => l.status).filter(Boolean))) as string[];
-  }, [logs]);
+  const handleToggleBlock = (rowId: string) => {
+    setBlockedIds((prev) =>
+      prev.includes(rowId)
+        ? prev.filter((id) => id !== rowId)
+        : [...prev, rowId]
+    );
 
-  const exportCSV = () => {
-    if (!filteredLogs.length) {
-      toast.error("No data to export.");
+    const isBlocked = blockedIds.includes(rowId);
+    toast.success(isBlocked ? "Visitor unblocked" : "Visitor blocked");
+  };
+
+  const handleAddAdmin = () => {
+    const email = adminEmail.trim().toLowerCase();
+
+    if (!email) {
+      toast.error("Enter admin email first");
       return;
     }
 
-    const headers = [
-      "Student/Employee No",
-      "Full Name",
-      "College",
-      "Purpose",
-      "Status",
-      "Time In",
-      "Time Out",
-      "Created At",
-    ];
+    if (!email.endsWith("@neu.edu.ph")) {
+      toast.error("Use a valid NEU email");
+      return;
+    }
 
-    const rows = filteredLogs.map((log) => [
-      log.student_no ?? "",
-      log.full_name ?? "",
-      log.college ?? "",
-      log.purpose ?? "",
-      log.status ?? "",
-      log.time_in ?? "",
-      log.time_out ?? "",
-      log.created_at ?? "",
+    if (admins.some((item) => item.email === email)) {
+      toast.error("Admin already exists");
+      return;
+    }
+
+    setAdmins((prev) => [
+      {
+        id: crypto.randomUUID(),
+        email,
+        addedBy: user?.email || "system",
+        dateAdded: new Date().toLocaleDateString(),
+      },
+      ...prev,
     ]);
-
-    const csv = [
-      headers.join(","),
-      ...rows.map((row) =>
-        row
-          .map((cell) => `"${String(cell).replace(/"/g, '""')}"`)
-          .join(",")
-      ),
-    ].join("\n");
-
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `neu-visitor-report-${format(new Date(), "yyyy-MM-dd-HH-mm")}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
-
-    toast.success("CSV exported successfully.");
+    setAdminEmail("");
+    toast.success("Admin added");
   };
 
-  const handleBlockVisitor = async () => {
-    if (!blockStudentNo.trim()) {
-      toast.error("Student/Employee No. is required.");
-      return;
-    }
-
-    const payload = {
-      student_no: blockStudentNo.trim(),
-      full_name: blockName.trim() || null,
-      reason: blockReason.trim() || "Blocked by admin",
-      blocked: true,
-    };
-
-    const { error } = await supabase
-      .from("blocked_visitors")
-      .upsert(payload, { onConflict: "student_no" });
-
-    if (error) {
-      console.error(error);
-      toast.error("Failed to block visitor.");
-      return;
-    }
-
-    toast.success("Visitor blocked successfully.");
-    setBlockStudentNo("");
-    setBlockName("");
-    setBlockReason("");
-    fetchBlockedVisitors();
+  const handleRemoveAdmin = (id: string) => {
+    setAdmins((prev) => prev.filter((item) => item.id !== id));
+    toast.success("Admin removed");
   };
 
-  const handleUnblockVisitor = async (studentNo: string) => {
-    const { error } = await supabase
-      .from("blocked_visitors")
-      .delete()
-      .eq("student_no", studentNo);
+  const handleAddStaff = () => {
+    const email = staffEmail.trim().toLowerCase();
 
-    if (error) {
-      console.error(error);
-      toast.error("Failed to unblock visitor.");
+    if (!email) {
+      toast.error("Enter staff/faculty email first");
       return;
     }
 
-    toast.success("Visitor unblocked successfully.");
-    fetchBlockedVisitors();
+    if (!email.endsWith("@neu.edu.ph")) {
+      toast.error("Use a valid NEU email");
+      return;
+    }
+
+    if (staffFaculty.some((item) => item.email === email)) {
+      toast.error("Staff/Faculty already exists");
+      return;
+    }
+
+    setStaffFaculty((prev) => [
+      {
+        id: crypto.randomUUID(),
+        email,
+        addedBy: user?.email || "system",
+        dateAdded: new Date().toLocaleDateString(),
+      },
+      ...prev,
+    ]);
+    setStaffEmail("");
+    toast.success("Staff/Faculty added");
   };
 
-  const handleRoleAssign = async () => {
-    if (!roleUserId.trim()) {
-      toast.error("User ID is required.");
-      return;
-    }
-
-    const { error: deleteError } = await supabase
-      .from("user_roles")
-      .delete()
-      .eq("user_id", roleUserId.trim());
-
-    if (deleteError) {
-      console.error(deleteError);
-      toast.error("Failed to reset old role.");
-      return;
-    }
-
-    const { error: insertError } = await supabase
-      .from("user_roles")
-      .insert({
-        user_id: roleUserId.trim(),
-        role: roleValue,
-      });
-
-    if (insertError) {
-      console.error(insertError);
-      toast.error("Failed to assign role.");
-      return;
-    }
-
-    toast.success(`Role updated to ${roleValue}.`);
-    setRoleUserId("");
-    fetchUserRoles();
+  const handleRemoveStaff = (id: string) => {
+    setStaffFaculty((prev) => prev.filter((item) => item.id !== id));
+    toast.success("Staff/Faculty removed");
   };
 
-  if (loading || loadingData) {
+  if (loading) {
     return (
       <Layout>
-        <div className="min-h-[70vh] flex items-center justify-center text-white text-lg">
+        <div className="container mx-auto px-4 py-10 text-white">
           Loading admin dashboard...
         </div>
       </Layout>
     );
   }
 
+  if (!user || !isAdmin) return null;
+
   return (
     <Layout>
-      <div
-        className="min-h-screen relative overflow-hidden"
-        style={{
-          backgroundImage:
-            "url('https://images.unsplash.com/photo-1521587760476-6c12a4b040da?q=80&w=1600&auto=format&fit=crop')",
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-        }}
-      >
-        <div className="absolute inset-0 bg-black/60 backdrop-blur-[3px]" />
+      <div className="relative min-h-[calc(100vh-5.5rem)] overflow-hidden">
+        <div
+          className="absolute inset-0 z-0"
+          style={{
+            backgroundImage: `url(${libraryBg})`,
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+            filter: "blur(10px) brightness(0.18)",
+          }}
+        />
+        <div className="absolute inset-0 z-0 bg-slate-950/75" />
+        <div className="absolute inset-0 z-0 bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.12),transparent_35%),radial-gradient(circle_at_bottom_right,rgba(245,158,11,0.08),transparent_30%)]" />
 
-        <div className="relative z-10 p-4 md:p-8">
-          <div className="max-w-7xl mx-auto space-y-6">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div className="relative z-10 container mx-auto px-4 py-8">
+          <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-blue-400/20 bg-blue-400/10 px-3 py-1 text-xs font-medium text-blue-200">
+                <Shield className="h-3.5 w-3.5" />
+                Admin Control Center
+              </div>
+              <h1 className="text-4xl font-bold tracking-tight text-white">
+                Admin Dashboard
+              </h1>
+              <p className="mt-2 max-w-2xl text-white/65">
+                Monitor visitor activity, manage access, review logs, and organize
+                admin and staff permissions in one dashboard.
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 backdrop-blur-md">
+              <p className="text-sm text-white/60">Logged in as</p>
+              <p className="font-medium text-white">{user.email}</p>
+            </div>
+          </div>
+
+          <div className="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <StatCard
+              icon={<Activity className="h-5 w-5 text-blue-300" />}
+              title="Filtered Visits"
+              value={filteredLogs.length}
+              subtitle="Current results"
+              accent="blue"
+            />
+            <StatCard
+              icon={<Users className="h-5 w-5 text-emerald-300" />}
+              title="Active Visitors"
+              value={activeVisitors}
+              subtitle="Still inside"
+              accent="emerald"
+            />
+            <StatCard
+              icon={<UserRound className="h-5 w-5 text-amber-300" />}
+              title="Unique Visitors"
+              value={uniqueVisitors}
+              subtitle="Distinct people"
+              accent="amber"
+            />
+            <StatCard
+              icon={<Clock3 className="h-5 w-5 text-violet-300" />}
+              title="Avg. Duration"
+              value={`${avgDuration} min`}
+              subtitle="Completed visits"
+              accent="violet"
+            />
+          </div>
+
+          <section className="mb-6 rounded-3xl border border-white/10 bg-white/[0.06] p-6 shadow-2xl backdrop-blur-xl">
+            <div className="mb-5 flex items-center justify-between gap-3">
               <div>
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="p-3 rounded-2xl bg-white/10 border border-white/20">
-                    <Shield className="h-6 w-6 text-white" />
-                  </div>
-                  <div>
-                    <h1 className="text-3xl md:text-4xl font-bold text-white">
-                      NEU Library Admin Dashboard
-                    </h1>
-                    <p className="text-white/80">
-                      Visitor analytics, blocking system, CSV export, and role control.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                <Button onClick={fetchAllData} className="rounded-xl">
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Refresh
-                </Button>
-                <Button onClick={exportCSV} variant="secondary" className="rounded-xl">
-                  <Download className="h-4 w-4 mr-2" />
-                  Export CSV
-                </Button>
+                <h2 className="text-xl font-semibold text-white">Visitor Statistics</h2>
+                <p className="text-sm text-white/55">
+                  Quick overview for today, this week, and this month
+                </p>
               </div>
             </div>
 
-            <div className="grid md:grid-cols-4 gap-4">
-              <Card className="bg-white/10 border-white/15 text-white backdrop-blur-md">
-                <CardContent className="p-5 flex items-center justify-between">
-                  <div>
-                    <p className="text-white/70 text-sm">Total Visitors</p>
-                    <h2 className="text-3xl font-bold">{stats.totalVisitors}</h2>
-                  </div>
-                  <Users className="h-8 w-8" />
-                </CardContent>
-              </Card>
+            <div className="grid gap-4 md:grid-cols-3">
+              <MiniStatCard label="Today" value={todayCount} />
+              <MiniStatCard label="This Week" value={thisWeekCount} />
+              <MiniStatCard label="This Month" value={thisMonthCount} />
+            </div>
+          </section>
 
-              <Card className="bg-white/10 border-white/15 text-white backdrop-blur-md">
-                <CardContent className="p-5 flex items-center justify-between">
-                  <div>
-                    <p className="text-white/70 text-sm">Unique Visitors</p>
-                    <h2 className="text-3xl font-bold">{stats.uniqueVisitors}</h2>
-                  </div>
-                  <UserCheck className="h-8 w-8" />
-                </CardContent>
-              </Card>
-
-              <Card className="bg-white/10 border-white/15 text-white backdrop-blur-md">
-                <CardContent className="p-5 flex items-center justify-between">
-                  <div>
-                    <p className="text-white/70 text-sm">Active Visits</p>
-                    <h2 className="text-3xl font-bold">{stats.activeVisits}</h2>
-                  </div>
-                  <Clock3 className="h-8 w-8" />
-                </CardContent>
-              </Card>
-
-              <Card className="bg-white/10 border-white/15 text-white backdrop-blur-md">
-                <CardContent className="p-5 flex items-center justify-between">
-                  <div>
-                    <p className="text-white/70 text-sm">Completed Visits</p>
-                    <h2 className="text-3xl font-bold">{stats.completedVisits}</h2>
-                  </div>
-                  <CheckCircle2 className="h-8 w-8" />
-                </CardContent>
-              </Card>
+          <section className="mb-6 rounded-3xl border border-white/10 bg-white/[0.06] p-6 shadow-2xl backdrop-blur-xl">
+            <div className="mb-5 flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-semibold text-white">Visitors by College</h2>
+                <p className="text-sm text-white/55">
+                  College-based breakdown based on the current filters
+                </p>
+              </div>
             </div>
 
-            <Card className="bg-white/10 border-white/15 text-white backdrop-blur-md">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Filter className="h-5 w-5" />
-                  Filters
-                </CardTitle>
-                <CardDescription className="text-white/70">
-                  Filter by date, search, purpose, college, and visitor status.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    variant={dateMode === "today" ? "default" : "secondary"}
-                    onClick={() => setDateMode("today")}
-                    className="rounded-xl"
+            {collegeStats.length === 0 ? (
+              <p className="text-white/60">No college data available.</p>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {collegeStats.map((item) => (
+                  <div
+                    key={item.college}
+                    className="group rounded-2xl border border-white/10 bg-white/[0.04] p-5 transition-all duration-300 hover:-translate-y-1 hover:border-white/15 hover:bg-white/[0.07]"
                   >
-                    Today
-                  </Button>
-                  <Button
-                    variant={dateMode === "week" ? "default" : "secondary"}
-                    onClick={() => setDateMode("week")}
-                    className="rounded-xl"
-                  >
-                    This Week
-                  </Button>
-                  <Button
-                    variant={dateMode === "range" ? "default" : "secondary"}
-                    onClick={() => setDateMode("range")}
-                    className="rounded-xl"
-                  >
-                    Date Range
-                  </Button>
-                </div>
+                    <h3 className="text-lg font-bold uppercase tracking-wide text-white">
+                      {item.college}
+                    </h3>
 
-                {dateMode === "range" && (
-                  <div className="grid md:grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-sm text-white/80 mb-1 block">Start Date</label>
-                      <Input
-                        type="date"
-                        value={startDate}
-                        onChange={(e) => setStartDate(e.target.value)}
-                        className="bg-white text-black"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-sm text-white/80 mb-1 block">End Date</label>
-                      <Input
-                        type="date"
-                        value={endDate}
-                        onChange={(e) => setEndDate(e.target.value)}
-                        className="bg-white text-black"
-                      />
+                    <div className="mt-5 space-y-3">
+                      <div className="flex items-center justify-between text-sm text-white/65">
+                        <span>Total Visits</span>
+                        <span className="text-base font-semibold text-white">
+                          {item.totalVisits}
+                        </span>
+                      </div>
+
+                      <div className="h-px bg-white/10" />
+
+                      <div className="flex items-center justify-between text-sm text-white/65">
+                        <span>Unique Visitors</span>
+                        <span className="text-base font-semibold text-white">
+                          {item.uniqueVisitors}
+                        </span>
+                      </div>
                     </div>
                   </div>
-                )}
+                ))}
+              </div>
+            )}
+          </section>
 
-                <div className="grid md:grid-cols-4 gap-3">
-                  <Input
-                    placeholder="Search name / ID / purpose / college"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="bg-white text-black"
-                  />
-
-                  <select
-                    value={purposeFilter}
-                    onChange={(e) => setPurposeFilter(e.target.value)}
-                    className="h-10 rounded-md px-3 bg-white text-black"
-                  >
-                    <option value="">All Purposes</option>
-                    {uniquePurposes.map((item) => (
-                      <option key={item} value={item}>
-                        {item}
-                      </option>
-                    ))}
-                  </select>
-
-                  <select
-                    value={collegeFilter}
-                    onChange={(e) => setCollegeFilter(e.target.value)}
-                    className="h-10 rounded-md px-3 bg-white text-black"
-                  >
-                    <option value="">All Colleges</option>
-                    {uniqueColleges.map((item) => (
-                      <option key={item} value={item}>
-                        {item}
-                      </option>
-                    ))}
-                  </select>
-
-                  <select
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                    className="h-10 rounded-md px-3 bg-white text-black"
-                  >
-                    <option value="">All Status</option>
-                    {uniqueStatuses.map((item) => (
-                      <option key={item} value={item}>
-                        {item}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-white/10 border-white/15 text-white backdrop-blur-md">
-              <CardHeader>
-                <CardTitle>Visitor Bar Graph</CardTitle>
-                <CardDescription className="text-white/70">
-                  Quick chart view of visitor count based on your current filters.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="h-[320px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="date" />
-                      <YAxis allowDecimals={false} />
-                      <Tooltip />
-                      <Bar dataKey="visitors" radius={[8, 8, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </CardContent>
-            </Card>
-
-            <div className="grid lg:grid-cols-2 gap-6">
-              <Card className="bg-white/10 border-white/15 text-white backdrop-blur-md">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Ban className="h-5 w-5" />
-                    Block Visitor
-                  </CardTitle>
-                  <CardDescription className="text-white/70">
-                    Real blocking saved in database.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <Input
-                    placeholder="Student / Employee No."
-                    value={blockStudentNo}
-                    onChange={(e) => setBlockStudentNo(e.target.value)}
-                    className="bg-white text-black"
-                  />
-                  <Input
-                    placeholder="Full name (optional)"
-                    value={blockName}
-                    onChange={(e) => setBlockName(e.target.value)}
-                    className="bg-white text-black"
-                  />
-                  <Input
-                    placeholder="Reason"
-                    value={blockReason}
-                    onChange={(e) => setBlockReason(e.target.value)}
-                    className="bg-white text-black"
-                  />
-                  <Button onClick={handleBlockVisitor} className="w-full rounded-xl">
-                    <Ban className="h-4 w-4 mr-2" />
-                    Block Visitor
-                  </Button>
-
-                  <div className="pt-4 space-y-2 max-h-[280px] overflow-auto">
-                    {blockedVisitors.length === 0 ? (
-                      <p className="text-white/70 text-sm">No blocked visitors yet.</p>
-                    ) : (
-                      blockedVisitors.map((visitor) => (
-                        <div
-                          key={visitor.id}
-                          className="p-3 rounded-xl bg-white/10 border border-white/10 flex items-start justify-between gap-3"
-                        >
-                          <div>
-                            <p className="font-semibold">{visitor.full_name || "Unknown Visitor"}</p>
-                            <p className="text-sm text-white/80">{visitor.student_no}</p>
-                            <p className="text-xs text-white/60">{visitor.reason || "No reason"}</p>
-                          </div>
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            onClick={() => handleUnblockVisitor(visitor.student_no)}
-                          >
-                            Unblock
-                          </Button>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-white/10 border-white/15 text-white backdrop-blur-md">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <UserCog className="h-5 w-5" />
-                    Role Switching
-                  </CardTitle>
-                  <CardDescription className="text-white/70">
-                    Change a user to admin or user using their auth user ID.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <Input
-                    placeholder="User ID (UUID from auth.users)"
-                    value={roleUserId}
-                    onChange={(e) => setRoleUserId(e.target.value)}
-                    className="bg-white text-black"
-                  />
-
-                  <select
-                    value={roleValue}
-                    onChange={(e) => setRoleValue(e.target.value as "admin" | "user")}
-                    className="h-10 rounded-md px-3 bg-white text-black w-full"
-                  >
-                    <option value="user">user</option>
-                    <option value="admin">admin</option>
-                  </select>
-
-                  <Button onClick={handleRoleAssign} className="w-full rounded-xl">
-                    Save Role
-                  </Button>
-
-                  <div className="pt-4 space-y-2 max-h-[280px] overflow-auto">
-                    {userRoles.length === 0 ? (
-                      <p className="text-white/70 text-sm">No roles found.</p>
-                    ) : (
-                      userRoles.map((item) => (
-                        <div
-                          key={item.id}
-                          className="p-3 rounded-xl bg-white/10 border border-white/10 flex items-center justify-between gap-3"
-                        >
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium truncate">{item.user_id}</p>
-                          </div>
-                          <Badge variant={item.role === "admin" ? "default" : "secondary"}>
-                            {item.role}
-                          </Badge>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
+          <section className="mb-6 rounded-3xl border border-white/10 bg-white/[0.06] p-6 shadow-2xl backdrop-blur-xl">
+            <div className="mb-5">
+              <h2 className="text-xl font-semibold text-white">Search & Filter Visitors</h2>
+              <p className="text-sm text-white/55">
+                Find visitor records by email, student number, name, college, purpose, or date
+              </p>
             </div>
 
-            <Card className="bg-white/10 border-white/15 text-white backdrop-blur-md">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <CalendarDays className="h-5 w-5" />
-                  Visitor Logs
-                </CardTitle>
-                <CardDescription className="text-white/70">
-                  Full visitor records based on selected filters.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {filteredLogs.length === 0 ? (
-                  <div className="text-center py-10 text-white/70">
+            <div className="mb-4 rounded-2xl border border-white/10 bg-black/15 px-4 py-3">
+              <div className="flex items-center gap-3">
+                <Search className="h-4 w-4 text-white/50" />
+                <input
+                  type="text"
+                  placeholder="Search by name, email, student number, college, reason, date..."
+                  className="w-full bg-transparent text-sm text-white outline-none placeholder:text-white/35"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <FilterField label="Date Range">
+                <select
+                  value={dateRange}
+                  onChange={(e) => setDateRange(e.target.value)}
+                  className="dashboard-select"
+                >
+                  <option className="text-black">Today</option>
+                  <option className="text-black">This Week</option>
+                  <option className="text-black">This Month</option>
+                  <option className="text-black">All Dates</option>
+                </select>
+              </FilterField>
+
+              <FilterField label="College">
+                <select
+                  value={selectedCollege}
+                  onChange={(e) => setSelectedCollege(e.target.value)}
+                  className="dashboard-select"
+                >
+                  <option className="text-black">All Colleges</option>
+                  {collegeOptions.map((college) => (
+                    <option key={college} className="text-black">
+                      {college}
+                    </option>
+                  ))}
+                </select>
+              </FilterField>
+
+              <FilterField label="Purpose">
+                <select
+                  value={selectedPurpose}
+                  onChange={(e) => setSelectedPurpose(e.target.value)}
+                  className="dashboard-select"
+                >
+                  <option className="text-black">All Purposes</option>
+                  {purposeOptions.map((purpose) => (
+                    <option key={purpose} className="text-black">
+                      {purpose}
+                    </option>
+                  ))}
+                </select>
+              </FilterField>
+
+              <FilterField label="Employee Status">
+                <select
+                  value={selectedStatus}
+                  onChange={(e) => setSelectedStatus(e.target.value)}
+                  className="dashboard-select"
+                >
+                  <option className="text-black">All</option>
+                  <option className="text-black">Student</option>
+                  <option className="text-black">Teacher</option>
+                  <option className="text-black">Staff</option>
+                </select>
+              </FilterField>
+            </div>
+          </section>
+
+          <section className="mb-6 rounded-3xl border border-white/10 bg-white/[0.06] p-6 shadow-2xl backdrop-blur-xl">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-semibold text-white">
+                  Visitor Results ({filteredLogs.length})
+                </h2>
+                <p className="text-sm text-white/55">
+                  Live visitor records from your visitor log table
+                </p>
+              </div>
+            </div>
+
+            {loadingLogs ? (
+              <p className="text-white/60">Loading visitor logs...</p>
+            ) : (
+              <div className="overflow-x-auto rounded-2xl border border-white/10">
+                <table className="w-full text-left text-sm text-white">
+                  <thead className="bg-white/[0.06] text-white/55">
+                    <tr>
+                      <th className="px-4 py-3 font-medium">Email</th>
+                      <th className="px-4 py-3 font-medium">Student Number</th>
+                      <th className="px-4 py-3 font-medium">Full Name</th>
+                      <th className="px-4 py-3 font-medium">College</th>
+                      <th className="px-4 py-3 font-medium">Reason</th>
+                      <th className="px-4 py-3 font-medium">Status</th>
+                      <th className="px-4 py-3 font-medium">Date & Time</th>
+                      <th className="px-4 py-3 font-medium">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredLogs.map((row) => {
+                      const isBlocked = blockedIds.includes(row.id);
+                      return (
+                        <tr
+                          key={row.id}
+                          className="border-t border-white/8 transition-colors hover:bg-white/[0.035]"
+                        >
+                          <td className="px-4 py-3">{row.gmail ?? "-"}</td>
+                          <td className="px-4 py-3">{row.id_number ?? "-"}</td>
+                          <td className="px-4 py-3">{row.visitor_name ?? "-"}</td>
+                          <td className="px-4 py-3">{row.college ?? "-"}</td>
+                          <td className="px-4 py-3">{row.purpose ?? "-"}</td>
+                          <td className="px-4 py-3">
+                            <span
+                              className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
+                                row.clock_out
+                                  ? "bg-emerald-400/10 text-emerald-300"
+                                  : "bg-amber-400/10 text-amber-300"
+                              }`}
+                            >
+                              {row.clock_out ? "Completed" : "Active"}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            {row.clock_in
+                              ? new Date(row.clock_in).toLocaleString()
+                              : "-"}
+                          </td>
+                          <td className="px-4 py-3">
+                            <button
+                              onClick={() => handleToggleBlock(row.id)}
+                              className={`inline-flex items-center gap-1 rounded-xl border px-3 py-1.5 text-xs font-medium transition ${
+                                isBlocked
+                                  ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-300 hover:bg-emerald-400/15"
+                                  : "border-red-400/20 bg-red-400/10 text-red-300 hover:bg-red-400/15"
+                              }`}
+                            >
+                              {isBlocked ? (
+                                <>
+                                  <CheckCircle2 className="h-3.5 w-3.5" />
+                                  Unblock
+                                </>
+                              ) : (
+                                <>
+                                  <Ban className="h-3.5 w-3.5" />
+                                  Block
+                                </>
+                              )}
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+
+                {!filteredLogs.length && (
+                  <div className="px-4 py-8 text-center text-white/55">
                     No visitor records found.
                   </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-white/10 text-left">
-                          <th className="py-3 pr-3">ID No.</th>
-                          <th className="py-3 pr-3">Name</th>
-                          <th className="py-3 pr-3">College</th>
-                          <th className="py-3 pr-3">Purpose</th>
-                          <th className="py-3 pr-3">Status</th>
-                          <th className="py-3 pr-3">Time In</th>
-                          <th className="py-3 pr-3">Time Out</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredLogs.map((log) => (
-                          <tr key={log.id} className="border-b border-white/5">
-                            <td className="py-3 pr-3">{log.student_no}</td>
-                            <td className="py-3 pr-3">{log.full_name}</td>
-                            <td className="py-3 pr-3">{log.college || "-"}</td>
-                            <td className="py-3 pr-3">{log.purpose || "-"}</td>
-                            <td className="py-3 pr-3">{log.status || "-"}</td>
-                            <td className="py-3 pr-3">
-                              {log.time_in ? format(new Date(log.time_in), "PPP p") : "-"}
-                            </td>
-                            <td className="py-3 pr-3">
-                              {log.time_out ? format(new Date(log.time_out), "PPP p") : "Active"}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
                 )}
-              </CardContent>
-            </Card>
+              </div>
+            )}
+          </section>
+
+          <div className="grid gap-6 xl:grid-cols-2">
+            <section className="rounded-3xl border border-white/10 bg-white/[0.06] p-6 shadow-2xl backdrop-blur-xl">
+              <div className="mb-5">
+                <div className="mb-2 flex items-center gap-2">
+                  <Shield className="h-5 w-5 text-blue-300" />
+                  <h2 className="text-xl font-semibold text-white">
+                    Admin Management
+                  </h2>
+                </div>
+                <p className="text-sm text-white/55">
+                  Add or remove admin access for NEU email accounts
+                </p>
+              </div>
+
+              <div className="mb-5 flex flex-col gap-3 sm:flex-row">
+                <input
+                  type="email"
+                  value={adminEmail}
+                  onChange={(e) => setAdminEmail(e.target.value)}
+                  placeholder="Enter NEU email (@neu.edu.ph)"
+                  className="h-12 w-full rounded-2xl border border-white/10 bg-black/15 px-4 text-white outline-none placeholder:text-white/30"
+                />
+                <button
+                  onClick={handleAddAdmin}
+                  className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-blue-400/20 bg-blue-400/10 px-4 text-sm font-medium text-blue-200 transition hover:bg-blue-400/15"
+                >
+                  <UserPlus className="h-4 w-4" />
+                  Add Admin
+                </button>
+              </div>
+
+              <div className="overflow-x-auto rounded-2xl border border-white/10">
+  <table className="min-w-[720px] w-full text-left text-sm text-white">
+    <thead className="bg-white/[0.06] text-white/55">
+      <tr>
+        <th className="px-4 py-3 font-medium">Email</th>
+        <th className="px-4 py-3 font-medium">Added By</th>
+        <th className="px-4 py-3 font-medium">Date Added</th>
+        <th className="px-4 py-3 font-medium w-[120px] text-right">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {admins.map((item) => (
+        <tr key={item.id} className="border-t border-white/8">
+          <td className="px-4 py-3">{item.email}</td>
+          <td className="px-4 py-3">{item.addedBy}</td>
+          <td className="px-4 py-3">{item.dateAdded}</td>
+          <td className="px-4 py-3 text-right">
+            <button
+              onClick={() => handleRemoveAdmin(item.id)}
+              className="inline-flex items-center justify-center whitespace-nowrap rounded-xl border border-red-400/20 bg-red-400/10 px-3 py-1.5 text-xs font-medium text-red-300 transition hover:bg-red-400/15"
+            >
+              Remove
+            </button>
+          </td>
+        </tr>
+      ))}
+    </tbody>
+  </table>
+</div>
+            </section>
+
+            <section className="rounded-3xl border border-white/10 bg-white/[0.06] p-6 shadow-2xl backdrop-blur-xl">
+              <div className="mb-5">
+                <div className="mb-2 flex items-center gap-2">
+                  <GraduationCap className="h-5 w-5 text-amber-300" />
+                  <h2 className="text-xl font-semibold text-white">
+                    Staff/Faculty Management
+                  </h2>
+                </div>
+                <p className="text-sm text-white/55">
+                  Add or remove staff and faculty members
+                </p>
+              </div>
+
+              <div className="mb-5 flex flex-col gap-3 sm:flex-row">
+                <input
+                  type="email"
+                  value={staffEmail}
+                  onChange={(e) => setStaffEmail(e.target.value)}
+                  placeholder="Enter NEU email (@neu.edu.ph)"
+                  className="h-12 w-full rounded-2xl border border-white/10 bg-black/15 px-4 text-white outline-none placeholder:text-white/30"
+                />
+                <button
+                  onClick={handleAddStaff}
+                  className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-amber-400/20 bg-amber-400/10 px-4 text-sm font-medium text-amber-200 transition hover:bg-amber-400/15"
+                >
+                  <UserPlus className="h-4 w-4" />
+                  Add Staff/Faculty
+                </button>
+              </div>
+
+              <div className="overflow-hidden rounded-2xl border border-white/10">
+                <table className="w-full text-left text-sm text-white">
+                  <thead className="bg-white/[0.06] text-white/55">
+                    <tr>
+                      <th className="px-4 py-3 font-medium">Email</th>
+                      <th className="px-4 py-3 font-medium">Added By</th>
+                      <th className="px-4 py-3 font-medium">Date Added</th>
+                      <th className="px-4 py-3 font-medium">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {staffFaculty.map((item) => (
+                      <tr key={item.id} className="border-t border-white/8">
+                        <td className="px-4 py-3">{item.email}</td>
+                        <td className="px-4 py-3">{item.addedBy}</td>
+                        <td className="px-4 py-3">{item.dateAdded}</td>
+                        <td className="px-4 py-3">
+                          <button
+                            onClick={() => handleRemoveStaff(item.id)}
+                            className="rounded-xl border border-red-400/20 bg-red-400/10 px-3 py-1.5 text-xs font-medium text-red-300 transition hover:bg-red-400/15"
+                          >
+                            Remove
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+
+          <div className="mt-6 flex justify-center">
+            <button
+              onClick={() => void fetchLogs()}
+              className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] px-5 py-3 text-sm font-medium text-white transition hover:-translate-y-0.5 hover:bg-white/[0.09]"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Refresh Statistics
+            </button>
           </div>
         </div>
       </div>
     </Layout>
   );
 };
+
+const StatCard = ({
+  icon,
+  title,
+  value,
+  subtitle,
+  accent,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  value: string | number;
+  subtitle: string;
+  accent: "blue" | "emerald" | "amber" | "violet";
+}) => {
+  const accents = {
+    blue: "from-blue-400/15 to-blue-500/5",
+    emerald: "from-emerald-400/15 to-emerald-500/5",
+    amber: "from-amber-400/15 to-amber-500/5",
+    violet: "from-violet-400/15 to-violet-500/5",
+  };
+
+  return (
+    <div
+      className={`rounded-3xl border border-white/10 bg-gradient-to-br ${accents[accent]} p-5 shadow-2xl backdrop-blur-xl`}
+    >
+      <div className="mb-4 flex items-center justify-between">
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+          {icon}
+        </div>
+      </div>
+      <p className="text-sm text-white/60">{title}</p>
+      <p className="mt-2 text-3xl font-bold text-white">{value}</p>
+      <p className="mt-1 text-xs text-white/40">{subtitle}</p>
+    </div>
+  );
+};
+
+const MiniStatCard = ({
+  label,
+  value,
+}: {
+  label: string;
+  value: number;
+}) => (
+  <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+    <p className="text-sm uppercase tracking-wide text-white/45">{label}</p>
+    <p className="mt-3 text-5xl font-bold text-white">{value}</p>
+    <p className="mt-1 text-sm text-white/40">Visitors</p>
+  </div>
+);
+
+const FilterField = ({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) => (
+  <div>
+    <label className="mb-2 block text-sm font-medium text-white/70">
+      {label}
+    </label>
+    {children}
+  </div>
+);
 
 export default AdminDashboard;
