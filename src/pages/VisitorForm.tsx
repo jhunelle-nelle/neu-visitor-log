@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { LogIn, LogOut, Mail, User, Shield } from "lucide-react";
+import { LogIn, LogOut, Mail, User, Shield, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import Layout from "@/components/Layout";
 import { supabase } from "@/integrations/supabase/client";
@@ -26,7 +26,7 @@ const purposes = [
   "Others",
 ];
 
-const VisitorPage = () => {
+const VisitorForm = () => {
   const { user, loading, isAdmin } = useAuth();
 
   const [mode, setMode] = useState<"clockin" | "clockout">("clockin");
@@ -49,11 +49,31 @@ const VisitorPage = () => {
 
       setFullName(name);
       setGmail(email);
+
+      void loadLatestProfile(email);
     } else {
       setFullName("");
       setGmail("");
+      setStudentNo("");
+      setCollege("");
+      setPurpose("");
     }
   }, [user]);
+
+  const loadLatestProfile = async (email: string) => {
+    const { data, error } = await supabase
+      .from("visitor_logs")
+      .select("id_number, college, visitor_name, gmail")
+      .eq("gmail", email)
+      .order("clock_in", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!error && data) {
+      setStudentNo(data.id_number ?? "");
+      setCollege(data.college ?? "");
+    }
+  };
 
   const handleGoogleLogin = async () => {
     const { error } = await supabase.auth.signInWithOAuth({
@@ -68,14 +88,45 @@ const VisitorPage = () => {
     }
   };
 
+  const handleSignOut = async () => {
+    const { error } = await supabase.auth.signOut();
+
+    if (error) {
+      toast.error("Failed to sign out");
+      return;
+    }
+
+    toast.success("Signed out successfully");
+  };
+
   const handleClockIn = async () => {
     if (!user) {
       toast.error("Please sign in with Google first.");
       return;
     }
 
-    if (!studentNo || !fullName || !gmail || !college || !purpose) {
-      toast.error("Please complete all required fields.");
+    if (!studentNo.trim()) {
+      toast.error("Student/Employee No. is required.");
+      return;
+    }
+
+    if (!fullName.trim()) {
+      toast.error("Google name not found.");
+      return;
+    }
+
+    if (!gmail.trim()) {
+      toast.error("Google email not found.");
+      return;
+    }
+
+    if (!college.trim()) {
+      toast.error("Please select your college.");
+      return;
+    }
+
+    if (!purpose.trim()) {
+      toast.error("Please select your purpose of visit.");
       return;
     }
 
@@ -107,6 +158,7 @@ const VisitorPage = () => {
         purpose,
         employee_status: "student",
         clock_in: new Date().toISOString(),
+        clock_out: null,
       });
 
       if (error) {
@@ -114,8 +166,10 @@ const VisitorPage = () => {
         return;
       }
 
-      toast.success("Clocked in successfully.");
+      toast.success("Clocked in successfully");
       setPurpose("");
+    } catch {
+      toast.error("Clock in failed");
     } finally {
       setSubmitting(false);
     }
@@ -124,6 +178,11 @@ const VisitorPage = () => {
   const handleClockOut = async () => {
     if (!user) {
       toast.error("Please sign in with Google first.");
+      return;
+    }
+
+    if (!gmail.trim()) {
+      toast.error("Google email not found.");
       return;
     }
 
@@ -136,6 +195,7 @@ const VisitorPage = () => {
         .eq("gmail", gmail)
         .is("clock_out", null)
         .order("clock_in", { ascending: false })
+        .limit(1)
         .maybeSingle();
 
       if (fetchError) {
@@ -160,7 +220,9 @@ const VisitorPage = () => {
         return;
       }
 
-      toast.success("Clocked out successfully.");
+      toast.success("Clocked out successfully");
+    } catch {
+      toast.error("Clock out failed");
     } finally {
       setSubmitting(false);
     }
@@ -221,14 +283,23 @@ const VisitorPage = () => {
               Clock Out
             </button>
 
-            {!loading && !user && (
+            {!loading && !user ? (
               <button
                 onClick={handleGoogleLogin}
                 className="inline-flex items-center gap-2 rounded-2xl border border-white/30 bg-white/10 px-6 py-3 text-sm font-semibold text-white backdrop-blur-md transition hover:bg-white/20"
               >
                 Continue with Google
               </button>
-            )}
+            ) : null}
+
+            {!loading && user ? (
+              <button
+                onClick={handleSignOut}
+                className="inline-flex items-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-6 py-3 text-sm font-semibold text-red-700 transition hover:bg-red-100"
+              >
+                Sign Out
+              </button>
+            ) : null}
           </div>
 
           <div className="w-full max-w-3xl rounded-[2rem] border border-white/30 bg-white/85 p-6 shadow-2xl backdrop-blur-xl md:p-8">
@@ -333,9 +404,16 @@ const VisitorPage = () => {
                     <button
                       onClick={handleClockIn}
                       disabled={submitting}
-                      className="h-14 w-full rounded-2xl bg-blue-700 text-lg font-semibold text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="inline-flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-blue-700 text-lg font-semibold text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {submitting ? "Logging In..." : "Log In"}
+                      {submitting ? (
+                        <>
+                          <Loader2 className="h-5 w-5 animate-spin" />
+                          Logging In...
+                        </>
+                      ) : (
+                        "Log In"
+                      )}
                     </button>
                   </>
                 ) : (
@@ -348,14 +426,21 @@ const VisitorPage = () => {
                     <button
                       onClick={handleClockOut}
                       disabled={submitting}
-                      className="h-14 w-full rounded-2xl bg-slate-900 text-lg font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="inline-flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-slate-900 text-lg font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {submitting ? "Clocking Out..." : "Clock Out"}
+                      {submitting ? (
+                        <>
+                          <Loader2 className="h-5 w-5 animate-spin" />
+                          Clocking Out...
+                        </>
+                      ) : (
+                        "Clock Out"
+                      )}
                     </button>
                   </>
                 )}
 
-                {isAdmin && (
+                {isAdmin ? (
                   <div className="mt-4 flex justify-end">
                     <a
                       href="/admin"
@@ -365,7 +450,7 @@ const VisitorPage = () => {
                       Admin
                     </a>
                   </div>
-                )}
+                ) : null}
               </>
             )}
           </div>
@@ -375,4 +460,4 @@ const VisitorPage = () => {
   );
 };
 
-export default VisitorPage;
+export default VisitorForm;
