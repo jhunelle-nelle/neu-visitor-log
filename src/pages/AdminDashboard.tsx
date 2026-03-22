@@ -63,7 +63,7 @@ type UserRoleRow = {
 
 const allowedAdmins = [
   "jcesperanza@neu.edu.ph",
-  "jhunnelle.remo@neu.edu.ph",
+  "jhunelle.remo@neu.edu.ph",
   "eduardo.donato@neu.edu.ph",
 ];
 
