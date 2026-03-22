@@ -76,7 +76,7 @@ const Layout = ({ children }: { children: ReactNode }) => {
               </Link>
             )}
 
-            {user && (
+            {user && isAdmin && (
               <Button
                 variant="secondary"
                 onClick={handleSignOut}
