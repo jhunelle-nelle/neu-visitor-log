@@ -61,15 +61,15 @@ const VisitorForm = () => {
   }, [user]);
 
   const loadLatestProfile = async (email: string) => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("visitor_logs")
-      .select("id_number, college")
+      .select("id_number, college, visitor_name, gmail")
       .eq("gmail", email)
       .order("clock_in", { ascending: false })
       .limit(1)
       .maybeSingle();
 
-    if (data) {
+    if (!error && data) {
       setStudentNo(data.id_number ?? "");
       setCollege(data.college ?? "");
     }
@@ -83,31 +83,69 @@ const VisitorForm = () => {
       },
     });
 
-    if (error) toast.error(error.message);
+    if (error) {
+      toast.error(error.message);
+    }
   };
 
   const handleSignOut = async () => {
     const { error } = await supabase.auth.signOut();
-    if (error) return toast.error("Failed to sign out");
+
+    if (error) {
+      toast.error("Failed to sign out");
+      return;
+    }
+
     toast.success("Signed out successfully");
   };
 
   const handleClockIn = async () => {
-    if (!user) return toast.error("Please sign in first.");
-    if (!studentNo || !college || !purpose)
-      return toast.error("Please complete all fields.");
+    if (!user) {
+      toast.error("Please sign in with Google first.");
+      return;
+    }
+
+    if (!studentNo.trim()) {
+      toast.error("Student/Employee No. is required.");
+      return;
+    }
+
+    if (!fullName.trim()) {
+      toast.error("Google name not found.");
+      return;
+    }
+
+    if (!gmail.trim()) {
+      toast.error("Google email not found.");
+      return;
+    }
+
+    if (!college.trim()) {
+      toast.error("Please select your college.");
+      return;
+    }
+
+    if (!purpose.trim()) {
+      toast.error("Please select your purpose of visit.");
+      return;
+    }
 
     setSubmitting(true);
 
     try {
-      const { data: existing } = await supabase
+      const { data: existingOpenLog, error: openLogError } = await supabase
         .from("visitor_logs")
         .select("id")
         .eq("gmail", gmail)
         .is("clock_out", null)
         .maybeSingle();
 
-      if (existing) {
+      if (openLogError) {
+        toast.error(openLogError.message);
+        return;
+      }
+
+      if (existingOpenLog) {
         toast.error("You already have an active visit.");
         return;
       }
@@ -120,11 +158,15 @@ const VisitorForm = () => {
         purpose,
         employee_status: "student",
         clock_in: new Date().toISOString(),
+        clock_out: null,
       });
 
-      if (error) throw error;
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
 
-      toast.success("Clocked in!");
+      toast.success("Clocked in successfully");
       setPurpose("");
     } catch {
       toast.error("Clock in failed");
@@ -134,29 +176,51 @@ const VisitorForm = () => {
   };
 
   const handleClockOut = async () => {
-    if (!user) return toast.error("Please sign in first.");
+    if (!user) {
+      toast.error("Please sign in with Google first.");
+      return;
+    }
+
+    if (!gmail.trim()) {
+      toast.error("Google email not found.");
+      return;
+    }
 
     setSubmitting(true);
 
     try {
-      const { data } = await supabase
+      const { data: openLog, error: fetchError } = await supabase
         .from("visitor_logs")
         .select("id")
         .eq("gmail", gmail)
         .is("clock_out", null)
+        .order("clock_in", { ascending: false })
+        .limit(1)
         .maybeSingle();
 
-      if (!data) {
-        toast.error("No active visit.");
+      if (fetchError) {
+        toast.error(fetchError.message);
         return;
       }
 
-      await supabase
-        .from("visitor_logs")
-        .update({ clock_out: new Date().toISOString() })
-        .eq("id", data.id);
+      if (!openLog) {
+        toast.error("No active visit found for this account.");
+        return;
+      }
 
-      toast.success("Clocked out!");
+      const { error: updateError } = await supabase
+        .from("visitor_logs")
+        .update({
+          clock_out: new Date().toISOString(),
+        })
+        .eq("id", openLog.id);
+
+      if (updateError) {
+        toast.error(updateError.message);
+        return;
+      }
+
+      toast.success("Clocked out successfully");
     } catch {
       toast.error("Clock out failed");
     } finally {
@@ -178,73 +242,215 @@ const VisitorForm = () => {
         />
         <div className="absolute inset-0 bg-slate-950/45" />
 
-        <div className="relative z-10 mx-auto max-w-4xl px-4 py-10">
-          <div className="text-center mb-6">
-            <h1 className="text-4xl font-bold text-white">
-              NEU Library Lab
-            </h1>
+        <div className="relative z-10 mx-auto flex max-w-6xl flex-col items-center px-4 py-10">
+          <div className="mb-8 text-center">
+            <div className="inline-block rounded-[2rem] bg-blue-700/90 px-10 py-5 shadow-2xl">
+              <h1 className="text-4xl font-bold text-white md:text-6xl">
+                Welcome to
+              </h1>
+              <h2 className="text-4xl font-bold text-yellow-400 md:text-6xl">
+                NEU University Library Lab
+              </h2>
+            </div>
+
+            <p className="mt-6 text-lg text-white/85">
+              Sign in below to log your visit
+            </p>
           </div>
 
-          <div className="flex justify-center gap-3 mb-6">
-            <button onClick={() => setMode("clockin")} className="btn">
+          <div className="mb-6 flex flex-wrap items-center justify-center gap-3">
+            <button
+              onClick={() => setMode("clockin")}
+              className={`inline-flex items-center gap-2 rounded-2xl px-6 py-3 text-sm font-semibold transition ${
+                mode === "clockin"
+                  ? "bg-blue-700 text-white"
+                  : "bg-white text-slate-900"
+              }`}
+            >
+              <LogIn className="h-4 w-4" />
               Clock In
             </button>
-            <button onClick={() => setMode("clockout")} className="btn">
+
+            <button
+              onClick={() => setMode("clockout")}
+              className={`inline-flex items-center gap-2 rounded-2xl px-6 py-3 text-sm font-semibold transition ${
+                mode === "clockout"
+                  ? "bg-blue-700 text-white"
+                  : "bg-white text-slate-900"
+              }`}
+            >
+              <LogOut className="h-4 w-4" />
               Clock Out
             </button>
 
-            {user && (
-              <button onClick={handleSignOut} className="btn bg-red-500 text-white">
+            {!loading && !user ? (
+              <button
+                onClick={handleGoogleLogin}
+                className="inline-flex items-center gap-2 rounded-2xl border border-white/30 bg-white/10 px-6 py-3 text-sm font-semibold text-white backdrop-blur-md transition hover:bg-white/20"
+              >
+                Continue with Google
+              </button>
+            ) : null}
+
+            {!loading && user ? (
+              <button
+                onClick={handleSignOut}
+                className="inline-flex items-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-6 py-3 text-sm font-semibold text-red-700 transition hover:bg-red-100"
+              >
                 Sign Out
               </button>
-            )}
+            ) : null}
           </div>
 
-          <div className="bg-white p-6 rounded-xl shadow">
+          <div className="w-full max-w-3xl rounded-[2rem] border border-white/30 bg-white/85 p-6 shadow-2xl backdrop-blur-xl md:p-8">
+            <div className="mb-6">
+              <h3 className="text-3xl font-bold text-slate-900">
+                {mode === "clockin" ? "Clock In" : "Clock Out"}
+              </h3>
+              <p className="mt-2 text-slate-500">
+                {mode === "clockin"
+                  ? "Enter your details to log your visit"
+                  : "Use your Google account to close your active visit"}
+              </p>
+            </div>
+
             {!user ? (
-              <div className="text-center">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center">
+                <p className="mb-4 text-slate-700">
+                  Sign in with your Google account first.
+                </p>
                 <button
                   onClick={handleGoogleLogin}
-                  className="bg-blue-600 text-white px-6 py-3 rounded-xl"
+                  className="rounded-2xl bg-blue-700 px-6 py-3 font-semibold text-white transition hover:bg-blue-800"
                 >
-                  Continue with Google
+                  Sign in with Google
                 </button>
               </div>
             ) : (
               <>
-                <p><b>Name:</b> {fullName}</p>
-                <p><b>Email:</b> {gmail}</p>
+                <div className="mb-6 grid gap-4 md:grid-cols-2">
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-700">
+                      Full Name
+                    </label>
+                    <div className="flex h-14 items-center gap-3 rounded-2xl border border-slate-300 bg-slate-100 px-4 text-slate-700">
+                      <User className="h-4 w-4" />
+                      <span>{fullName || "No name from Google"}</span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-700">
+                      Gmail
+                    </label>
+                    <div className="flex h-14 items-center gap-3 rounded-2xl border border-slate-300 bg-slate-100 px-4 text-slate-700">
+                      <Mail className="h-4 w-4" />
+                      <span>{gmail}</span>
+                    </div>
+                  </div>
+                </div>
 
                 {mode === "clockin" ? (
                   <>
-                    <input
-                      placeholder="Student No"
-                      value={studentNo}
-                      onChange={(e) => setStudentNo(e.target.value)}
-                      className="input"
-                    />
+                    <div className="mb-4">
+                      <label className="mb-2 block text-sm font-medium text-slate-700">
+                        Student/Employee No. *
+                      </label>
+                      <input
+                        type="text"
+                        value={studentNo}
+                        onChange={(e) => setStudentNo(e.target.value)}
+                        placeholder="2024-00001"
+                        className="h-14 w-full rounded-2xl border border-slate-300 bg-white px-4 text-slate-900 outline-none transition focus:border-blue-600"
+                      />
+                    </div>
 
-                    <select value={college} onChange={(e) => setCollege(e.target.value)} className="input">
-                      <option value="">Select College</option>
-                      {colleges.map((c) => <option key={c}>{c}</option>)}
-                    </select>
+                    <div className="mb-4">
+                      <label className="mb-2 block text-sm font-medium text-slate-700">
+                        College / Department *
+                      </label>
+                      <select
+                        value={college}
+                        onChange={(e) => setCollege(e.target.value)}
+                        className="h-14 w-full rounded-2xl border border-slate-300 bg-white px-4 text-slate-900 outline-none transition focus:border-blue-600"
+                      >
+                        <option value="">Select your college</option>
+                        {colleges.map((item) => (
+                          <option key={item} value={item}>
+                            {item}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
 
-                    <select value={purpose} onChange={(e) => setPurpose(e.target.value)} className="input">
-                      <option value="">Purpose</option>
-                      {purposes.map((p) => <option key={p}>{p}</option>)}
-                    </select>
+                    <div className="mb-6">
+                      <label className="mb-2 block text-sm font-medium text-slate-700">
+                        Purpose of Visit *
+                      </label>
+                      <select
+                        value={purpose}
+                        onChange={(e) => setPurpose(e.target.value)}
+                        className="h-14 w-full rounded-2xl border border-slate-300 bg-white px-4 text-slate-900 outline-none transition focus:border-blue-600"
+                      >
+                        <option value="">Select purpose</option>
+                        {purposes.map((item) => (
+                          <option key={item} value={item}>
+                            {item}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
 
-                    <button onClick={handleClockIn} className="btn w-full">
-                      {submitting ? "Loading..." : "Clock In"}
+                    <button
+                      onClick={handleClockIn}
+                      disabled={submitting}
+                      className="inline-flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-blue-700 text-lg font-semibold text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {submitting ? (
+                        <>
+                          <Loader2 className="h-5 w-5 animate-spin" />
+                          Logging In...
+                        </>
+                      ) : (
+                        "Log In"
+                      )}
                     </button>
                   </>
                 ) : (
-                  <button onClick={handleClockOut} className="btn w-full">
-                    {submitting ? "Loading..." : "Clock Out"}
-                  </button>
+                  <>
+                    <div className="mb-6 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-slate-700">
+                      Your active visit will be matched using your Google email:
+                      <span className="ml-1 font-semibold">{gmail}</span>
+                    </div>
+
+                    <button
+                      onClick={handleClockOut}
+                      disabled={submitting}
+                      className="inline-flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-slate-900 text-lg font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {submitting ? (
+                        <>
+                          <Loader2 className="h-5 w-5 animate-spin" />
+                          Clocking Out...
+                        </>
+                      ) : (
+                        "Clock Out"
+                      )}
+                    </button>
+                  </>
                 )}
 
-                {isAdmin && <a href="/admin">Admin</a>}
+                {isAdmin ? (
+                  <div className="mt-4 flex justify-end">
+                    <a
+                      href="/admin"
+                      className="inline-flex items-center gap-2 rounded-2xl border border-amber-300 bg-amber-100 px-4 py-2 text-sm font-semibold text-amber-900"
+                    >
+                      <Shield className="h-4 w-4" />
+                      Admin
+                    </a>
+                  </div>
+                ) : null}
               </>
             )}
           </div>
